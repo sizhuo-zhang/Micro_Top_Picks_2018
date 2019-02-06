@@ -1,0 +1,226 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+% The preceding line is only needed to identify funding in the first footnote. If that is unneeded, please comment it out.
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+
+% our packages
+\usepackage[caption=false]{subfig}
+\usepackage{url}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{boxedminipage}
+\usepackage{comment}
+\usepackage{multirow}
+\usepackage{microtype}
+\usepackage[normalem]{ulem}
+\usepackage{hyperref}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+% our defs
+\setlist{noitemsep,leftmargin=*}
+\newenvironment{tightlist}{\begin{itemize}\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}{\end{itemize}}
+\newcommand{\mycomment}[1]{\emph{\textcolor{red}{[#1]}}}
+
+\newcommand{\newtext}[1]{\textcolor{red}{#1}}
+    
+\begin{document}
+
+\title{Composable Building Blocks to Open up Processor Design\thanks{``Composable Building Blocks to Open up Processor Design'', in 2018 51st Annual IEEE/ACM International Symposium on Microarchitecture (MICRO), October, 2018.}}
+
+\author{\IEEEauthorblockN{Sizhuo Zhang, Andrew Wright, Thomas Bourgeat, Arvind}
+\IEEEauthorblockA{MIT CSAIL\\
+\{szzhang, acwright, bthom, arvind\}@csail.mit.edu}}
+
+\maketitle
+
+\section{Summary}
+It is generally believed that modern processors are the most sophisticated hardware systems that currently exist.
+Given the complexity of the design of a processor, it is split into multiple modules, which are often designed by different teams.
+This partition of work leads to the following two challenges:
+\begin{enumerate}
+    \item Will the processor work as expected when the modules are composed together?
+    \item Is it possible to do \emph{modular refinement}, i.e., refine a module without knowing the implementation details of the other modules?
+\end{enumerate}
+Ability to do modular refinement is necessary to meet the goal of performance/power/area (PPA), and in some sense it subsumes the functionality challenge. 
+
+Most processors~\cite{rocketchip,boom,fabscalar,pulp} have been designed in a \emph{structural} way, i.e., modules are physical blocks connected by wires.
+The implementation of one module may make implicit assumptions about the timing of input signals coming from other modules, and thus, the composed processor functions correctly if each module meets its timing assumptions and functionality.
+Such timing assumptions are difficult to specify, which makes the mechanical verification of timing-assumption violations impossible.
+%In order to avoid rigid timing assumptions, some designers use the GALS methodology (Globally-Asynchronous Locally-Synchronous) where modules communicate in a latency insensitive manner using send-acknowledge protocols.
+%Yet another variant of the latency insensitive  framework is dataflow, where modules communicate with each other using FIFOs.
+In order to avoid rigid timing assumptions, some designers use the latency insensitive framework, where modules communicate with each other using FIFOs.
+In such frameworks a module cannot depend on the timing of other modules, and that significantly improves the flexibility in modular refinement.
+%However, the communication overheads in such frameworks rule out small modules and restricts hierarchical organization of modules.
+Although the latency-insensitive framework has proven useful in building hardware accelerators, it is not expressive enough for processors. 
+In processors, a microarchitectural event may need to access and modify the states in multiple modules \emph{atomically}. 
+This is because different microarchitectural events may race with each other in accessing the states inside modules, and such ``data races'' can make the processor implementation incorrect if an event fails to perform all its accesses atomically with respect to other events.
+We studied two race cases in the paper, and here we list a few more cases in the out-of-order processor we have built:
+\begin{enumerate}
+    \item \emph{Speculation bits}:
+    Often an instruction flowing through the execution pipeline carries bits to indicate the speculation events which can cause its squashing.
+    There is a race in the management of these bits, because they are cleared by asynchronous events that show that the speculations were correct.
+    
+    \item \emph{Memory address disambiguation}:
+    A load in the load queue searches the store queue for forwarding, and a store in the store queue may update its address and search the load queue for detecting memory-dependency violations. 
+    There is a race if the addresses are the same.
+    
+    \item \emph{Distributed cache coherence protocols}:
+    A race condition arises when a parent is trying to downgrade a child's entry while it is receiving the eviction of the same entry from the child.
+\end{enumerate}
+
+A non-modular solution to these race problems is to put all the interacting components in one module.
+However, doing so in complex designs leads to big monolithic modules.
+
+In this paper, we present the Composable Modular Design (CMD) framework, which permits state changes in multiple modules \emph{atomically}.
+CMD uses the following two techniques to achieve composability and atomicity:
+\begin{enumerate}
+    \item \emph{modules with guarded interface methods}, and
+    \item \emph{atomic rules} that glue modules together by calling the methods of modules.
+\end{enumerate}
+
+\noindent\textbf{Modules with guarded interface methods:}
+A module is like an object in an object-oriented programming language, and can be manipulated only by its interface methods.
+A method provides combinational access and performs atomic updates to the state elements inside the module.
+In addition, every interface method is \emph{guarded}, that is, there is an implicit guard (a ready signal) on every method which must be true before the method can be invoked (enabled).
+For example, the guard signal for the enqueue method of a FIFO is simply the not-full condition.
+CMD subsumes the traditional latency-insensitive framework by admitting systems where each interface method of every module simply enqueues or dequeues FIFOs.
+
+\noindent\textbf{Atomic Rules:}
+Unlike the structural designs, modules in CMD are manipulated by the special glue logic, i.e., atomic rules, which is a collection of calls to the methods of one or more modules.
+An atomic rule is like an atomic transaction, which either updates the states of all the called modules  or does nothing.
+Of course, a method can execute only if its guard is true; therefore, the guards of all the methods called by a rule must be true simultaneously.
+
+In CMD, each microarchitectural event (which happens in a single cycle) is expressed as an atomic rule.
+Enforcing atomicity is challenging when two rules manipulate the same states.
+In such a case, it has to be ensured that the rules appear to execute one after another.
+Whether two rules can execute concurrently or not depends on the properties of the called methods.
+Thus, for each module, we use a \emph{Conflict Matrix (CM)}, which specifies which methods of the module can be called concurrently.
+The relation between each pair of methods may be described as follows:
+\begin{itemize}
+    \item \emph{conflict-free}: the methods do not manipulate the same state elements, and thus, can be called together;
+    \item \emph{conflicting}: the methods cannot be called in the same cycle;
+    \item \emph{happen-before}: the methods can be called together but functionally behave as if one executed before the other.
+    This involves bypass logic inside the module in case a write method happens before a read method.
+\end{itemize}
+Given the CMs of all the modules, it is straightforward to derive the concurrency relation between every pair of rules.
+Support for CMD requires a stall signal in the glue logic to suppress the execution of one rule in a pair of conflicting rules.
+
+\noindent\textbf{Expressing CMD in Hardware Description Languages (HDLs):}
+We expressed the CMD framework in Bluespec System Verilog (BSV).
+The BSV compiler automatically (1) derives the CM for each module implementation, (2) derives the concurrency relations between each pair of rules according to the CMs, and (3) generates stall signals in the glue logic.
+\emph{The compiler statically resolves all the dynamic concurrency issues, making it possible to apply mechanical verification  techniques to designs.}
+
+It is possible to use other HDLs to express CMD, but then we may not get all the benefits of the automatic concurrency analysis done by the BSV compiler.
+
+\noindent\textbf{CMD Design Flow:}
+We develop designs in two phases.
+We first focus on functionality and do not try to get maximum hardware concurrency.
+After this phase, we often discover that two rules are conflicting, and this affects the performance adversely.
+To execute such rules concurrently invariably requires introduction of bypass logic.
+In CMD, one never writes bypass logic explicitly.
+Instead, one can specify the order in which rules should execute, from which one can derive the desired CM of each module.
+Rosenband~\cite{rosenband2004ephemeral} has given a systematic way to transform the module implementation to satisfy a given CM using Ephemeral History Registers (EHRs) which implicitly introduce bypass logic.
+This transformation does not affect the functional correctness of the overall design.
+
+\noindent\textbf{Modular Refinement in CMD:}
+When a refinement on a module does not affect the interface methods or the CM, the local correctness of the module guarantees the preservation of the overall correctness.
+If the CM of the refined module is changed, the BSV compiler can re-analyze the relations between rules and generate stall new signals to keep the design functionally correct.
+
+In some cases, a refinement may entail several modules simultaneously or may add new methods to a module for increased functionality.
+Any changes in interface methods implies that the rules that call these methods have to be changed.
+However, making this change does not require knowing the internal details of other modules, because other modules have been encapsulated by their interface specifications.
+
+In summary, by employing modules with guarded interfaces and atomic rules, CMD is able to provide strong composability and atomicity.
+
+\noindent\textbf{RiscyOO -- Application of CMD to Designing a RISC-V Out-of-Order Processor:}
+Using the CMD framework, we built, \emph{RiscyOO}, a parameterized out-of-order superscalar cache-coherent multiprocessor.
+The processor uses the open-source RISC-V instruction set~\cite{riscv}.
+We prototyped RiscyOO on AWS F1 FPGA, and booted Linux on it.
+To evaluate the performance of RiscyOO, we run SPEC CINT2006 benchmarks (ref input size, no sampling) which ran trillions of instructions on our FPGA prototype without any hardware failures.
+Our evaluation shows that RiscyOO is much faster than in-order processors like Rocket~\cite{firesim2017RISCV}, and matches state-of-the-art academic out-of-order processors like BOOM~\cite{kimevaluation}.
+However, commercial ARM-based processors are 40\% faster than RiscyOO on average in terms of cycle counts, possibly because of the higher superscalarity and more sophisticated microarchitectures.
+
+We also applied standard ASIC synthesis flow (topographical synthesis) on RiscyOO.
+Using a 32nm technology, the processor can be clocked over 1GHz.
+
+In the course of our design, we made the following two refinements of RiscyOO:
+\begin{enumerate}
+    \item We refined the TLB microarhictectures by (1) supporting non-blocking miss handling, and (2) adding translation caches to cache intermediate page-walk steps.
+    This refinement improved the performance by 29\% on overage.
+    \item Originally RiscyOO supported only a weak memory model.
+    We refined the design of the load-store unit and the L1 cache to make RiscyOO support TSO.
+    By running PARSEC benchmarks on a 4-core configuration of RiscyOO, we showed that the TSO refinement has little performance impact.
+\end{enumerate}
+Even though these refinements required changing multiple modules and adding new interface methods, they were carried out in a very short time (two weeks for each).
+This is because CMD enabled us to pinpoint the modules and rules that need to be changed, instead of looking through all the modules in the processor. 
+
+%\clearpage
+\section{Potential for Long-term Impact}
+
+\noindent\textbf{Flexible Open-Source Processor IP:}
+The software community has benefited for years from open source projects and permissive licensing. 
+This has allowed reusable libraries with proper APIs to flourish. 
+The open-source RISC-V ISA~\cite{riscv} is an attempt to open up the processor design community in a similar way.
+Although there are already several good and free implementations of RISC-V processors~\cite{rocketchip,boom,pulp}, which can be included directly as processor IP blocks when building an SoC, they are not enough to realize the full potential of RISC-V.
+This is because these processors are built in a structural way.
+As a consequence, their customizability is at a coarse granularity (e.g., changing cache and buffer sizes) and often limited by the number of configurations provided by the original processor designers.
+Moreover, if one needs to change the implementations of one or more modules in the processor, then he/she may need to understand the implementations of nearly all the modules in order to prevent his/her changes from breaking the whole processor.
+This requires significant effort, which may be comparable to building a new processor from scratch, and we think it would intimidate people from reusing or customizing these processor IPs.
+
+The CMD framework solves the problem by providing composability at the module level, and thus enables customization at a much finer granularity.
+If people need to change a module in a processor designed using CMD, only the interfaces, instead of implementations, of other modules need to be understood.
+This lowers the barrier for customizing processor designs, and would encourage more people to join the open-source hardware community.
+Furthermore, CMD allows people to contribute a variety of modules and replacements, which can be composed easily using atomic rules to form processors suitable for different use cases.
+
+To foster the open-source community, we have released our building blocks for the RiscyOO processor at \texttt{\url{https://github.com/csail-csg/riscy-OOO}} under the MIT License.
+As the number of refinements on our design provided by us and the community grows over time, we hope these building blocks can become a toolbox for computer architects and SoC designers.
+
+\noindent\textbf{Substrate for Validating Software-Hardware Codesign:}
+\begin{comment}
+When improving the PPA of processors, hardware changes that are transparent to software are most welcome, and if the benefits are high enough, they can be absorbed into commercial designs gradually.
+However, with the end of Moore's law, hardware designs are facing more and more critical constraints, and it has become very difficult to come up with such transparent hardware changes to improve PPA.
+\end{comment}
+As many recent research proposals show, increasingly people have come to appreciate the importance of codesigning software and hardware.
+However, these software-hardware codesign proposals meet with skepticism because of concerns about the interaction of architectural changes with the OS and other existing software/hardware stacks.
+For example, proposals on adaptive cache architectures~\cite{Jigsaw} often need to color pages, and it is natural to be concerned about the changes in OS codes that are needed to do this correctly, or how the changes interact with super pages which can benefit applications with large memory footprints.
+For another example, consider some newly proposed coherence protocols~\cite{DeNoVo}, which rely on software to be data-race-free (DRF). It is natural to have concerns regarding how the OS can gracefully terminate a user program that has data races and clean up polluted cache states caused by the user program.
+
+It is almost impossible to address these system-level concerns using a simulator which does not run an OS.
+Even if the simulator does run an OS, it is still difficult to convince others (e.g., commercial processor vendors) that the simulation model does not include anything that is difficult to implement in hardware.
+More importantly, simulation models may omit details to gain simulation speed, but those omitted details may turn out to affect the proposed scheme.
+For example, the DeNovo coherence protocol~\cite{DeNoVo}, which assumes software to be DRF, self-invalidates local caches at the end of each critical section.
+To improve performance, it does not flush data read during the current critical section, because DRF software should always read up-to-date values.
+However, the speculative load execution in modern processors may bring in any stale data into the local caches even when software is DRF.
+The paper did not address this concern, because the evaluation was done using an one-IPC core model which did not even simulate wrong path instructions.
+
+Given all the above concerns with software simulators, the only way to increase the fidelity of a software-hardware codesign proposal is to put up a full-system prototype.
+Our RiscyOO processor would be a great substrate for building such prototypes.
+Since RiscyOO boots Linux, researchers now have the opportunity to truly modify the OS and test the feasibility of the changes.
+Furthermore, the CMD framework used to build RiscyOO allows researchers to implement the proposed changes in a short time.
+In addition, the realistic microarchitectures of RiscyOO can help eliminate concerns on whether they have omitted hardware features that may affect the proposal adversely.
+Last but not the least, the high speed of RiscyOO (40MHz on AWS F1 FPGA) makes evaluation of large realistic benchmarks possible.
+
+\noindent\textbf{Secure Architectures:}
+The recent advent of side-channel attacks based on speculative microarchitectures have prompted architects to redesign processors for security.
+Such redesigns often manipulate microarchitectural state  differently, and inevitably require changes in both software and hardware.
+The RiscyOO processor is a great platform for exploring security solutions because its speculative microarchitecture is as  vulnerable to side-channel attacks as commercial processors.
+Its easy-to-modify modify design allows fast exploration of new security schemes which can be tested while running full software stack.
+Since all the reported attacks can be replicated even in an FPGA implementation, a red team can directly try to break a supposedly ``secure'' processor running in the (AWS) cloud. 
+
+\section{Citation for the Test-of-Time Award}
+"For unleashing the flexibility in processor designs using atomic actions."
+
+%\clearpage
+\bibliographystyle{IEEEtran}
+\bibliography{top_picks}
+
+
+
+\end{document}

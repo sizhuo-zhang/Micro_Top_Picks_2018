@@ -18,15 +18,13 @@
 \usepackage[normalem]{ulem}
 \usepackage{hyperref}
 
-\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
-    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+%\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+%    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
 
 % our defs
 \setlist{noitemsep,leftmargin=*}
-\newenvironment{tightlist}{\begin{itemize}\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}{\end{itemize}}
+%\newenvironment{tightlist}{\begin{itemize}\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}{\end{itemize}}
 \newcommand{\mycomment}[1]{\emph{\textcolor{red}{[#1]}}}
-
-\newcommand{\newtext}[1]{\textcolor{red}{#1}}
     
 \begin{document}
 
@@ -38,6 +36,10 @@
 
 \maketitle
 
+\thispagestyle{plain}
+\pagestyle{plain}
+
+\begin{comment}
 \section{Structure}
 \begin{enumerate}
     \item Introduction:
@@ -63,6 +65,13 @@
     \item Conclusion.
     \item Acknowledgement.
 \end{enumerate}
+\end{comment}
+
+\begin{abstract}
+    We present a framework called Composable Modular Design (CMD) to facilitate the design of out-of-order (OOO) processors. In CMD, (1) The interface methods of modules provide instantaneous access and perform atomic updates to the state elements inside the module; (2) Every interface method is guarded, i.e., it cannot be applied unless it is ready; and (3) Modules are composed together by atomic rules which call interface methods of different modules. A rule either successfully updates the state of all the called modules or does nothing.
+    
+    The atomicity properties of interfaces in CMD ensure composability when modules are refined selectively. We show the efficacy of CMD by building an OOO RISC-V processor which boots Linux. Modules designed using CMD (e.g., ROB, load-store unit, etc.) can be used and refined by other implementations. We believe that this framework can revolutionize architectural research and practice as the library of reusable components grows.
+\end{abstract}
 
 \section{Introduction}
 It is generally believed that modern processors are the most sophisticated hardware systems that currently exist.
@@ -82,12 +91,8 @@ In such frameworks a module cannot depend on the timing of other modules, and th
 Although the latency-insensitive framework has proven useful in building hardware accelerators, it is not expressive enough for processors. 
 In processors, a microarchitectural event may need to access and modify the states in multiple modules \emph{atomically}. 
 This is because different microarchitectural events may race with each other in accessing the states inside modules, and such ``data races'' can make the processor implementation incorrect if an event fails to perform all its accesses atomically with respect to other events.
-Here we list several race cases in the out-of-order processor we have built:
+Here we list several race cases in the out-of-order (OOO) processor we have built, and we will discuss a detailed example later in Section~\ref{sec:cmd:iq}:
 \begin{enumerate}
-    \item \emph{Instruction issue queue}:
-    
-    \item \emph{Store buffer}:
-    
     \item \emph{Speculation bits}:
     Often an instruction flowing through the execution pipeline carries bits to indicate the speculation events which can cause its squashing.
     There is a race in the management of these bits, because they are cleared by asynchronous events that show that the speculations were correct.
@@ -95,6 +100,10 @@ Here we list several race cases in the out-of-order processor we have built:
     \item \emph{Memory address disambiguation}:
     A load in the load queue searches the store queue for forwarding, and a store in the store queue may update its address and search the load queue for detecting memory-dependency violations. 
     There is a race if the addresses are the same.
+    
+    \item \emph{Partially overlapped addresses}:
+    A load also searches through older stores for stalls due to partially overlapped addresses, and a store should wake up younger loads stalled by it when the store is written to the L1 cache.
+    There is a race if the addresses overlaps partially.
     
     \item \emph{Distributed cache coherence protocols}:
     A race condition arises when a parent is trying to downgrade a child's entry while it is receiving the eviction of the same entry from the child.
@@ -110,19 +119,55 @@ CMD uses the following two techniques to achieve composability and atomicity:
     \item \emph{atomic rules} that glue modules together by calling the methods of modules.
 \end{enumerate}
 
-\noindent\textbf{Modules with guarded interface methods:}
-A module is like an object in an object-oriented programming language, and can be manipulated only by its interface methods.
+In CMD, a module is like an object in an object-oriented programming language, and can be manipulated only by its interface methods.
 A method provides combinational access and performs atomic updates to the state elements inside the module.
 In addition, every interface method is \emph{guarded}, that is, there is an implicit guard (a ready signal) on every method which must be true before the method can be invoked (enabled).
 For example, the guard signal for the enqueue method of a FIFO is simply the not-full condition.
 CMD subsumes the traditional latency-insensitive framework by admitting systems where each interface method of every module simply enqueues or dequeues FIFOs.
 
-\noindent\textbf{Atomic Rules:}
 Unlike the structural designs, modules in CMD are manipulated by the special glue logic, i.e., atomic rules, which is a collection of calls to the methods of one or more modules.
 An atomic rule is like an atomic transaction, which either updates the states of all the called modules  or does nothing.
 Of course, a method can execute only if its guard is true; therefore, the guards of all the methods called by a rule must be true simultaneously.
-
 In CMD, each microarchitectural event (which happens in a single cycle) is expressed as an atomic rule.
+Atomicity ensures that refinement of a module will not affect how it is used by the rules, i.e., modules are much more composable.
+
+This paper makes the following contributions:
+\begin{enumerate}
+    \item Composable Modular Design (CMD) flow, a new framework for implementing complex and realistic microarchitectures;
+    
+    \item A parameterized and modular OOO processor, \emph{RiscyOO} built using the CMD framework, which is released at \texttt{\url{https://github.com/csail-csg/riscy-OOO}} under the MIT License;
+    
+    \item Applications of the CMD framework and the RiscyOO processor.
+\end{enumerate}
+
+\noindent\textbf{Paper organization:}
+Section~\ref{sec:related} presents related works.
+Section~\ref{sec:cmd} describes the CMD framework.
+Section~\ref{sec:ooo} introduces the RiscyOO processor built using CMD.
+Section~\ref{sec:app} discusses further applications of CMD.
+Section~\ref{sec:conclude} concludes the paper.
+
+\section{Related Work}\label{sec:related}
+There is a long history of processors that were designed in the academic setting.
+Many of these attempts were focused on demonstrating new architectures; there was no expectation that other people would improve or refine an existing implementation.
+Other attempts aimed at providing open-source processors and a corresponding framework for configuring the design.
+For example, the Rocket chip generator~\cite{rocketchip} can generate SoCs with RISC-V cores that are parameterized by caches, branch predictors, degree of superscalarity, and ISA extensions.
+Fabscalar~\cite{fabscalar} allows one to assemble a variety of superscalar designs from a set of predefined pipeline-stage blocks.
+FabScalar have been successful in generating heterogeneous cores, but the predefined blocks are not intended to be modified themselves.
+PULP~\cite{pulp} is a platform for designing low-power IoT SoCs, but the processor cores are not intended to be refined within the framework.
+
+All these frameworks are structural compositions of predefined building blocks.
+The goal of our CMD framework is more ambitious, in the sense that, in addition to parameterized designs, we want the users to be able to incorporate new microarchitectural ideas.
+For example, replace a central instruction issue queue in an OOO design, with several instruction issue queues, one for each functional unit.
+Traditionally, making such changes requires a deep knowledge of the internal functioning of the other blocks, otherwise, the processor is unlikely to function. 
+We want to encapsulate enough properties in the interface of each block so that it can be composed without understanding the internal details.
+
+\section{Composable Modular Design (CMD) Framework}\label{sec:cmd}
+
+\subsection{IQ}\label{sec:cmd:iq}
+
+\newpage
+
 Enforcing atomicity is challenging when two rules manipulate the same states.
 In such a case, it has to be ensured that the rules appear to execute one after another.
 Whether two rules can execute concurrently or not depends on the properties of the called methods.
@@ -239,13 +284,8 @@ The RiscyOO processor is a great platform for exploring security solutions becau
 Its easy-to-modify modify design allows fast exploration of new security schemes which can be tested while running full software stack.
 Since all the reported attacks can be replicated even in an FPGA implementation, a red team can directly try to break a supposedly ``secure'' processor running in the (AWS) cloud. 
 
-\section{Citation for the Test-of-Time Award}
-"For unleashing the flexibility in processor designs using atomic actions."
-
 %\clearpage
 \bibliographystyle{IEEEtran}
 \bibliography{top_picks}
-
-
 
 \end{document}

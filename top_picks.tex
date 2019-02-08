@@ -64,7 +64,7 @@
     \item Acknowledgement.
 \end{enumerate}
 
-\section{Summary}
+\section{Introduction}
 It is generally believed that modern processors are the most sophisticated hardware systems that currently exist.
 Given the complexity of the design of a processor, it is split into multiple modules, which are often designed by different teams.
 This partition of work leads to the following two challenges:
@@ -77,16 +77,17 @@ Ability to do modular refinement is necessary to meet the goal of performance/po
 Most processors~\cite{rocketchip,boom,fabscalar,pulp} have been designed in a \emph{structural} way, i.e., modules are physical blocks connected by wires.
 The implementation of one module may make implicit assumptions about the timing of input signals coming from other modules, and thus, the composed processor functions correctly if each module meets its timing assumptions and functionality.
 Such timing assumptions are difficult to specify, which makes the mechanical verification of timing-assumption violations impossible.
-%In order to avoid rigid timing assumptions, some designers use the GALS methodology (Globally-Asynchronous Locally-Synchronous) where modules communicate in a latency insensitive manner using send-acknowledge protocols.
-%Yet another variant of the latency insensitive  framework is dataflow, where modules communicate with each other using FIFOs.
-In order to avoid rigid timing assumptions, some designers use the latency insensitive framework, where modules communicate with each other using FIFOs.
+In order to avoid rigid timing assumptions, some designers use the latency-insensitive framework, where modules communicate with each other using FIFOs.
 In such frameworks a module cannot depend on the timing of other modules, and that significantly improves the flexibility in modular refinement.
-%However, the communication overheads in such frameworks rule out small modules and restricts hierarchical organization of modules.
 Although the latency-insensitive framework has proven useful in building hardware accelerators, it is not expressive enough for processors. 
 In processors, a microarchitectural event may need to access and modify the states in multiple modules \emph{atomically}. 
 This is because different microarchitectural events may race with each other in accessing the states inside modules, and such ``data races'' can make the processor implementation incorrect if an event fails to perform all its accesses atomically with respect to other events.
-We studied two race cases in the paper, and here we list a few more cases in the out-of-order processor we have built:
+Here we list several race cases in the out-of-order processor we have built:
 \begin{enumerate}
+    \item \emph{Instruction issue queue}:
+    
+    \item \emph{Store buffer}:
+    
     \item \emph{Speculation bits}:
     Often an instruction flowing through the execution pipeline carries bits to indicate the speculation events which can cause its squashing.
     There is a race in the management of these bits, because they are cleared by asynchronous events that show that the speculations were correct.

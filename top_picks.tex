@@ -73,7 +73,7 @@
     The atomicity properties of interfaces in CMD ensure composability when modules are refined selectively. We show the efficacy of CMD by building an OOO RISC-V processor which boots Linux. Modules designed using CMD (e.g., ROB, load-store unit, etc.) can be used and refined by other implementations. We believe that this framework can revolutionize architectural research and practice as the library of reusable components grows.
 \end{abstract}
 
-\section{Introduction}
+\section{Introduction}\label{sec:intro}
 It is generally believed that modern processors are the most sophisticated hardware systems that currently exist.
 Given the complexity of the design of a processor, it is split into multiple modules, which are often designed by different teams.
 This partition of work leads to the following two challenges:
@@ -164,7 +164,22 @@ We want to encapsulate enough properties in the interface of each block so that 
 
 \section{Composable Modular Design (CMD) Framework}\label{sec:cmd}
 
-\subsection{IQ}\label{sec:cmd:iq}
+As mentioned in Section~\ref{sec:intro}, latency-insensitive frameworks are insufficient for processor designs because of races between microarchitectural events.
+We first study an example race case which involves the instruction issue queue (IQ) in the OOO processor, and then show how CMD extends module interfaces with concurrency properties to guarantee atomicity and solve the problem.
+
+\subsection{Race between Microarchitectural Events}\label{sec:cmd:iq}
+Figure shows the modules (blocks in the figure) and microarchitectural events (blobs in the figure) that participate in a race in the OOO processor.
+Module IQ keeps unissued instructions and tracks whether their (physical) source registers are ready or not.
+Module RDYB keeps one bit for each physical register, indicating whether the register has valid data or not.
+Microarchitectural event {Rename} gets a new instruction from the decode stage, do renaming, \emph{checks} RDYB to see if the source registers of the instructions are ready, and \emph{enters} the instruction with the register-ready bits into IQ.
+Microarchitectural event {RegWrite} happens at the end of execution pipeline when an instruction gets the value for its destination register.
+The event \emph{sets} the corresponding bit in RDYB and \emph{wakes} up dependent instructions in IQ.
+(There are other actions performed by the two events, but they are unrelated to the race case we are going to discuss.)
+
+Both events are accessing the states in IQ and RDYB, forming a race.
+
+
+\subsection{Conflict Matrix: Extending Module Interface with Concurrency Properties}
 
 \newpage
 

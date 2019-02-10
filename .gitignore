@@ -1,0 +1,8 @@
+build
+*.aux
+*.log
+*.blg
+*.out
+*.synctex.gz
+*.bbl
+*.docx

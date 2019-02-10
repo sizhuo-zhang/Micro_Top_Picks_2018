@@ -69,9 +69,10 @@
 \end{comment}
 
 \begin{abstract}
-    We present a framework called Composable Modular Design (CMD) to facilitate the design of out-of-order (OOO) processors. In CMD, (1) The interface methods of modules provide instantaneous access and perform atomic updates to the state elements inside the module; (2) Every interface method is guarded, i.e., it cannot be applied unless it is ready; and (3) Modules are composed together by atomic rules which call interface methods of different modules. A rule either successfully updates the state of all the called modules or does nothing.
+    % Maximum 149 words
+    We present a framework called Composable Modular Design (CMD) to facilitate the design of out-of-order processors. In CMD, (1) The interface methods of modules provide instantaneous access and perform atomic updates to the state elements inside the module; (2) Every interface method is guarded, i.e., it cannot be applied unless it is ready; and (3) Modules are composed by atomic rules which call interface methods of different modules. A rule either successfully updates the state of all the called modules or does nothing.
     
-    The atomicity properties of interfaces in CMD ensure composability when modules are refined selectively. We show the efficacy of CMD by building an OOO RISC-V processor which boots Linux. Modules designed using CMD (e.g., ROB, load-store unit, etc.) can be used and refined by other implementations. We believe that this framework can revolutionize architectural research and practice as the library of reusable components grows.
+    The atomicity properties of interfaces in CMD ensure composability when modules are refined selectively. We show the efficacy of CMD by building an out-of-order RISC-V processor which boots Linux. Modules designed using CMD (e.g., ROB, load-store unit, etc.) can be used and refined by other implementations. We believe that this framework can revolutionize architectural research and practice as the library of reusable components grows.
 \end{abstract}
 
 \section{Introduction}\label{sec:intro}
@@ -169,7 +170,7 @@ As mentioned in Section~\ref{sec:intro}, latency-insensitive frameworks are insu
 We first study an example race case which involves the instruction issue queue (IQ) in the OOO processor, and then show how CMD maintains atomicity and solves the race problem by extending module interfaces with concurrency properties.
 
 \subsection{Race between Microarchitectural Events}\label{sec:cmd:iq}
-Figure~\ref{fig:race:modules} shows the modules (blocks in the figure) and microarchitectural events (blobs in the figure) that participate in a race in the OOO processor.
+Figure~\ref{fig:race:modules} shows the modules and microarchitectural events that participate in a race in the OOO processor.
 Module IQ keeps unissued instructions and tracks whether their (physical) source registers are ready or not.
 Module RDYB keeps one bit for each physical register, indicating whether the register has valid data or not.
 Microarchitectural event {Rename} gets a new instruction from the decode stage, do renaming, \emph{checks} RDYB to see if the source registers of the instructions are ready, and \emph{enters} the instruction with the register-ready bits into IQ.
@@ -189,8 +190,8 @@ A structural solution is to introduce bypass wires either in RDYB (to have Renam
 However, the bypass wires break latency insensitivity and reduces composability.
 
 \begin{figure}[!htb]
-    \subfloat[Modules involved in the race\label{fig:race:modules}]{\missingfigure{text}}\\
-    \subfloat[Operation sequence that leads to deadlock\label{fig:race:deadlock}]{\missingfigure{text}}
+    \subfloat[Modules and microarchitectural events involved in the race. Modules are represented by blocks, while microarchitectural events are represented by clouds.\label{fig:race:modules}]{\missingfigure{}}\\
+    \subfloat[Operation sequence that leads to deadlock\label{fig:race:deadlock}]{\missingfigure{}}
     \caption{Race between microarchitectural events Rename and RegWrite in an OOO processor}\label{fig:race}
 \end{figure}
 
@@ -217,7 +218,6 @@ To make rules RegWrite and Rename execute concurrently, one solution is to chang
 This is, the implementation of module RDYB contains a bypass wire from method \emph{set} to \emph{check}.
 We will show shortly that this bypass wire can be generated implicitly in CMD.
 In this case, RegWrite will appear to execute before Rename.
-
 
 \subsection{Expressing CMD in Hardware Description Languages (HDLs)}
 We expressed the CMD framework in Bluespec System Verilog (BSV).
@@ -246,32 +246,35 @@ However, making this change does not require knowing the internal details of oth
 
 In summary, by employing modules with guarded interfaces and atomic rules, CMD is able to provide strong composability and atomicity.
 
-\section{RiscyOO: Application of CMD to Designing a RISC-V Out-of-Order Processor}
+
+\section{RiscyOO -- a RISC-V Out-of-Order Processor Designed Using CMD}\label{sec:ooo}
 Using the CMD framework, we built, \emph{RiscyOO}, a parameterized out-of-order superscalar cache-coherent multiprocessor.
 The processor uses the open-source RISC-V instruction set~\cite{riscv}.
+Figure~\ref{fig:ooo} shows the structure of RiscyOO multiprocessor.
+The OOO core contains 2-way superscalar fetch/decode/commit, 4 execution pipelines (only two are shown for simplicity), and two-level private TLBs.
+The core also performs various branch predictions, and execute loads speculatively.
+Multiple cores are connected to a non-blocking coherent cache hierarchy to form a multiprocessor.
+
+\begin{figure}[!htb]
+    \centering
+    \subfloat[Top-level moduels and rules of the OOO core. Modules are represented by rectangles, while rules are represented  by clouds. The core contains four execution pipelines: two for ALU and branch instruction, one for memory instructions, and one for floating point and complex integer instructions (e.g. multiplication). Only two pipelines are shown here for simplicity.]{\includegraphics[width=\columnwidth]{figs/core_cropped.pdf}}\\
+    \subfloat[Connecting OOO cores to form a multiprocessor]{\includegraphics[width=0.9\columnwidth]{figs/mem_cropped.pdf}}
+    \caption{RiscyOO multiprocessor}\label{fig:ooo}
+\end{figure}
+
 We prototyped RiscyOO on AWS F1 FPGA, and booted Linux on it.
 To evaluate the performance of RiscyOO, we run SPEC CINT2006 benchmarks (ref input size, no sampling) which ran trillions of instructions on our FPGA prototype without any hardware failures.
 Our evaluation shows that RiscyOO is much faster than in-order processors like Rocket~\cite{firesim2017RISCV}, and matches state-of-the-art academic out-of-order processors like BOOM~\cite{kimevaluation}.
 However, commercial ARM-based processors are 40\% faster than RiscyOO on average in terms of cycle counts, possibly because of the higher superscalarity and more sophisticated microarchitectures.
+Detailed performance analysis can be found in \cite{riscyoo}.
 
 We also applied standard ASIC synthesis flow (topographical synthesis) on RiscyOO.
 Using a 32nm technology, the processor can be clocked over 1GHz.
 
-In the course of our design, we made the following two refinements of RiscyOO:
-\begin{enumerate}
-    \item We refined the TLB microarhictectures by (1) supporting non-blocking miss handling, and (2) adding translation caches to cache intermediate page-walk steps.
-    This refinement improved the performance by 29\% on overage.
-    \item Originally RiscyOO supported only a weak memory model.
-    We refined the design of the load-store unit and the L1 cache to make RiscyOO support TSO.
-    By running PARSEC benchmarks on a 4-core configuration of RiscyOO, we showed that the TSO refinement has little performance impact.
-\end{enumerate}
-Even though these refinements required changing multiple modules and adding new interface methods, they were carried out in a very short time (two weeks for each).
-This is because CMD enabled us to pinpoint the modules and rules that need to be changed, instead of looking through all the modules in the processor. 
 
-%\clearpage
-\section{Potential for Long-term Impact}
+\section{Applications of CMD and RiscyOO}\label{sec:app}
 
-\noindent\textbf{Flexible Open-Source Processor IP:}
+\subsection{Flexible Open-Source Processor IP}
 The software community has benefited for years from open source projects and permissive licensing. 
 This has allowed reusable libraries with proper APIs to flourish. 
 The open-source RISC-V ISA~\cite{riscv} is an attempt to open up the processor design community in a similar way.
@@ -289,7 +292,27 @@ Furthermore, CMD allows people to contribute a variety of modules and replacemen
 To foster the open-source community, we have released our building blocks for the RiscyOO processor at \texttt{\url{https://github.com/csail-csg/riscy-OOO}} under the MIT License.
 As the number of refinements on our design provided by us and the community grows over time, we hope these building blocks can become a toolbox for computer architects and SoC designers.
 
-\noindent\textbf{Substrate for Validating Software-Hardware Codesign:}
+
+In the course of our design, we made the following two refinements of RiscyOO:
+\begin{enumerate}
+    \item We refined the TLB microarhictectures by (1) supporting non-blocking miss handling, and (2) adding translation caches to cache intermediate page-walk steps.
+    This refinement improved the performance by 29\% on overage.
+    \item Originally RiscyOO supported only a weak memory model.
+    We refined the design of the load-store unit and the L1 cache to make RiscyOO support TSO.
+    By running PARSEC benchmarks on a 4-core configuration of RiscyOO, we showed that the TSO refinement has little performance impact.
+\end{enumerate}
+Even though these refinements required changing multiple modules and adding new interface methods, they were carried out in a very short time (two weeks for each).
+This is because CMD enabled us to pinpoint the modules and rules that need to be changed, instead of looking through all the modules in the processor. 
+
+\subsection{Secure Architectures}
+The recent advent of side-channel attacks based on speculative microarchitectures have prompted architects to redesign processors for security.
+Such redesigns often manipulate microarchitectural states differently, and inevitably require changes in both software and hardware.
+The RiscyOO processor is a great platform for exploring security solutions because its speculative microarchitecture is as vulnerable to side-channel attacks as commercial processors.
+Its easy-to-modify modify design allows fast exploration of new security schemes which can be tested while running full software stack.
+Since all the reported attacks can be replicated even in an FPGA implementation, a red team can directly try to break a supposedly ``secure'' processor running in the (AWS) cloud. 
+
+
+\subsection{Substrate for Validating Software-Hardware Codesign}
 \begin{comment}
 When improving the PPA of processors, hardware changes that are transparent to software are most welcome, and if the benefits are high enough, they can be absorbed into commercial designs gradually.
 However, with the end of Moore's law, hardware designs are facing more and more critical constraints, and it has become very difficult to come up with such transparent hardware changes to improve PPA.
@@ -314,14 +337,25 @@ Furthermore, the CMD framework used to build RiscyOO allows researchers to imple
 In addition, the realistic microarchitectures of RiscyOO can help eliminate concerns on whether they have omitted hardware features that may affect the proposal adversely.
 Last but not the least, the high speed of RiscyOO (40MHz on AWS F1 FPGA) makes evaluation of large realistic benchmarks possible.
 
-\noindent\textbf{Secure Architectures:}
-The recent advent of side-channel attacks based on speculative microarchitectures have prompted architects to redesign processors for security.
-Such redesigns often manipulate microarchitectural states differently, and inevitably require changes in both software and hardware.
-The RiscyOO processor is a great platform for exploring security solutions because its speculative microarchitecture is as vulnerable to side-channel attacks as commercial processors.
-Its easy-to-modify modify design allows fast exploration of new security schemes which can be tested while running full software stack.
-Since all the reported attacks can be replicated even in an FPGA implementation, a red team can directly try to break a supposedly ``secure'' processor running in the (AWS) cloud. 
 
-%\clearpage
+\section{Conclusion}\label{sec:conclude}
+To fully benefit from the openness of RISC-V, the architecture community needs a framework where many different people can cooperate to try out new ideas in real hardware.
+Although existing chip generators can connect parameterized building blocks together,  they do not allow frequent changes to the building blocks.
+We have also shown that latency-insensitive interfaces alone are insufficient in processor designs.
+In this paper, we have proposed the CMD framework in which modules have guarded interface methods, and are composed together using atomic actions. 
+With the atomicity guarantee in CMD, modules can be refined selectively relying only on the interface details, including Conflict Matrix, of other modules.
+We have shown the efficacy of CMD by designing an OOO processor which has fairly complex architectural features.
+Both the synthesis results and the performance results are very encouraging, and with sufficient effort by the community, it should be possible to deliver commercial grade OOO processors in not too distant a future.
+
+
+\section*{Acknowledgment}
+We thank all the anonymous reviewers for their helpful feedbacks on improving this paper.
+We have also benefited from the help from Jamey Hicks and Muralidaran Vijayaraghavan.
+We would like to particularly thank Bluespec, Inc. for providing free tool licenses.
+This research is supported by the Defense Advanced Research Projects Agency (DARPA) under Contract No. FA8750-16-2-0004 (program BRASS) and Contract No. HR001118C0018 (program SSITH).
+Any opinions, findings and conclusions or recommendations expressed in this material are those of the authors and do not necessarily reflect the views of the Defense Advanced Research Projects Agency (DARPA).
+
+
 \bibliographystyle{IEEEtran}
 \bibliography{top_picks}
 

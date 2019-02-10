@@ -258,14 +258,14 @@ Multiple cores are connected to a non-blocking coherent cache hierarchy to form 
 
 \begin{figure}[!htb]
     \centering
-    \subfloat[Top-level moduels and rules of the OOO core. Modules are represented by rectangles, while rules are represented  by clouds. The core contains four execution pipelines: two for ALU and branch instruction, one for memory instructions, and one for floating point and complex integer instructions (e.g. multiplication). Only two pipelines are shown here for simplicity.]{\includegraphics[width=\columnwidth]{figs/core_cropped.pdf}}\\
-    \subfloat[Connecting OOO cores to form a multiprocessor]{\includegraphics[width=0.9\columnwidth]{figs/mem_cropped.pdf}}
+    \subfloat[Top-level moduels and rules of the OOO core. Modules are represented by rectangles, while rules are represented  by clouds. The core contains four execution pipelines: two for ALU and branch instruction, one for memory instructions, and one for floating point and complex integer instructions (e.g. multiplication). Only two pipelines are shown here for simplicity.\label{fig:ooo:core}]{\includegraphics[width=\columnwidth]{figs/core_cropped.pdf}}\\
+    \subfloat[Connecting OOO cores to form a multiprocessor\label{fig:ooo:mem}]{\includegraphics[width=0.9\columnwidth]{figs/mem_cropped.pdf}}
     \caption{RiscyOO multiprocessor}\label{fig:ooo}
 \end{figure}
 
 We prototyped RiscyOO on AWS F1 FPGA, and booted Linux on it.
 To evaluate the performance of RiscyOO, we run SPEC CINT2006 benchmarks (ref input size, no sampling) which ran trillions of instructions on our FPGA prototype without any hardware failures.
-Our evaluation shows that RiscyOO is much faster than in-order processors like Rocket~\cite{firesim2017RISCV}, and matches state-of-the-art academic out-of-order processors like BOOM~\cite{kimevaluation}.
+Our evaluation shows that RiscyOO is much faster than in-order processors, and matches state-of-the-art academic out-of-order processors.
 However, commercial ARM-based processors are 40\% faster than RiscyOO on average in terms of cycle counts, possibly because of the higher superscalarity and more sophisticated microarchitectures.
 Detailed performance analysis can be found in \cite{riscyoo}.
 
@@ -289,21 +289,27 @@ The CMD framework solves the problem by providing composability at the module le
 If people need to change a module in a processor designed using CMD, only the interfaces, instead of implementations, of other modules need to be understood.
 This lowers the barrier for customizing processor designs, and would encourage more people to join the open-source hardware community.
 Furthermore, CMD allows people to contribute a variety of modules and replacements, which can be composed easily using atomic rules to form processors suitable for different use cases.
+As an example, we have made two refinements on RiscyOO, which we explain next.
+
+\noindent\textbf{Refining the TLB microarhictectures:}
+In the original design of RiscyOO, both L1 and L2 TLBs block on misses, and a L1 D TLB miss blocks the memory execution pipeline.
+To improve performance, we have changed the L1 D TLB and L2 TLB to support parallel miss handling and hit-under-miss.
+To reduce the TLB miss latency, we also included in the L2 TLB a split translation cache~\cite{translationCache}, which caches intermediate page walk results.
+These refinements not only change the internal implementations of TLBs significantly, but also affect the interfaces of TLBs, e.g., the L1 D TLB sends responses out of order.
+Thanks to CMD, the changes in TLBs affect only rules that call the TLB interfaces (e.g., rules AddrCalc and UpdateLSQ in Figure~\ref{fig:ooo:core}), and we were able to commit these changes within two weeks by one person.
+Our evaluation shows that the refinements on TLBs can improve performance by 29\% on average~\cite{riscyoo}.
+
+\noindent\textbf{Adding support for TSO:}
+The original design of RiscyOO supported only a weak memory model WMM~\cite{wmm}.
+To make RiscyOO support TSO, we have changed the design of the load-store unit and L1 D cache so that cache evictions from L1 D will be snooped by the load-store queue (LSQ in Figure~\ref{fig:ooo:core}).
+These changes requires adding new interface methods, e.g., a new method in LSQ that kills eagerly executed loads when a cache eviction happens.
+This new method can race with other existing methods in LSQ, e.g., the one that issues a load from LSQ.
+Thanks to CMD, we can resolve these race conditions easily by relying on conflict matrices and rule-atomicity.
+The TSO support was added by one person in two weeks.
+We have run PARSEC benchmarks on a 4-core configuration of RiscyOO, and showed that the TSO refinement has little performance impact~\cite{riscyoo}.
 
 To foster the open-source community, we have released our building blocks for the RiscyOO processor at \texttt{\url{https://github.com/csail-csg/riscy-OOO}} under the MIT License.
 As the number of refinements on our design provided by us and the community grows over time, we hope these building blocks can become a toolbox for computer architects and SoC designers.
-
-
-In the course of our design, we made the following two refinements of RiscyOO:
-\begin{enumerate}
-    \item We refined the TLB microarhictectures by (1) supporting non-blocking miss handling, and (2) adding translation caches to cache intermediate page-walk steps.
-    This refinement improved the performance by 29\% on overage.
-    \item Originally RiscyOO supported only a weak memory model.
-    We refined the design of the load-store unit and the L1 cache to make RiscyOO support TSO.
-    By running PARSEC benchmarks on a 4-core configuration of RiscyOO, we showed that the TSO refinement has little performance impact.
-\end{enumerate}
-Even though these refinements required changing multiple modules and adding new interface methods, they were carried out in a very short time (two weeks for each).
-This is because CMD enabled us to pinpoint the modules and rules that need to be changed, instead of looking through all the modules in the processor. 
 
 \subsection{Secure Architectures}
 The recent advent of side-channel attacks based on speculative microarchitectures have prompted architects to redesign processors for security.

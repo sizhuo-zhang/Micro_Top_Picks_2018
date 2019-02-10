@@ -13,18 +13,16 @@
     howpublished = {\url{https://github.com/ucb-bar/riscv-boom}},
 }
 
-@ARTICLE{fabscalar,
-    author={N. Choudhary and S. Wadhavkar and T. Shah and H. Mayukh and J. Gandhi and B. Dwiel and S. Navada and H. Najaf-abadi and E. Rotenberg},
+@article{fabscalar,
+    title={Fabscalar: Automating superscalar core design},
+    author={Choudhary, Niket and Wadhavkar, Salil and Shah, Tanmay and Mayukh, Hiran and Gandhi, Jayneel and Dwiel, Brandon and Navada, Sandeep and Najaf-abadi, Hashem and Rotenberg, Eric},
     journal={IEEE Micro},
-    title={{FabScalar}: Automating Superscalar Core Design},
-    year={2012},
     volume={32},
     number={3},
-    pages={48-59},
-    keywords={energy conservation;multiprocessing systems;FabScalar;energy efficiency;instruction-level behavior;microarchitectural diversity;multiple superscalar core types;processor design;processor performance;superscalar core design;Hardware design languages;Instruction sets;Microarchitecture;Multicore processing;Program processors;ILP;design automation;heterogeneous (asymmetric) multicore;instruction-level parallelism;specialization;superscalar processors},
-    doi={10.1109/MM.2012.23},
-    ISSN={0272-1732},
-    month={May},}
+    pages={48--59},
+    year={2012},
+    publisher={IEEE}
+}
 
 @misc{pulp,
     title = {{PULP} platform},
@@ -34,27 +32,29 @@
 @inproceedings{rosenband2004ephemeral,
     title={The ephemeral history register: flexible scheduling for rule-based designs},
     author={Rosenband, Daniel L},
-    booktitle={MEMOCODE 2004},
+    booktitle={Formal Methods and Models for Co-Design, 2004. MEMOCODE'04. Proceedings. Second ACM and IEEE International Conference on},
     pages={189--198},
     year={2004},
     organization={IEEE}
 }
 
-@inproceedings{RNUCA,
- author = {Hardavellas, Nikos and Ferdman, Michael and Falsafi, Babak and Ailamaki, Anastasia},
- title = {Reactive NUCA: Near-optimal Block Placement and Replication in Distributed Caches},
- booktitle = {ISCA 2009}
+@inproceedings{Jigsaw,
+    title={Jigsaw: Scalable software-defined caches},
+    author={Beckmann, Nathan and Sanchez, Daniel},
+    booktitle={Parallel Architectures and Compilation Techniques (PACT), 2013 22nd International Conference on},
+    pages={213--224},
+    year={2013},
+    organization={IEEE}
 }
 
-@INPROCEEDINGS{Jigsaw, 
-author={N. Beckmann and D. Sanchez}, 
-booktitle={PACT 2013}, 
-title={Jigsaw: Scalable software-defined caches}, }
-
-@INPROCEEDINGS{DeNoVo,
-author={B. Choi and R. Komuravelli and H. Sung and R. Smolinski and N. Honarmand and S. V. Adve and V. S. Adve and N. P. Carter and C. Chou},
-booktitle={PACT 2011},
-title={DeNovo: Rethinking the Memory Hierarchy for Disciplined Parallelism},}
+@inproceedings{DeNoVo,
+    title={{DeNovo}: Rethinking the memory hierarchy for disciplined parallelism},
+    author={Choi, Byn and Komuravelli, Rakesh and Sung, Hyojin and Smolinski, Robert and Honarmand, Nima and Adve, Sarita V and Adve, Vikram S and Carter, Nicholas P and Chou, Ching-Tsun},
+    booktitle={2011 International Conference on Parallel Architectures and Compilation Techniques},
+    pages={155--166},
+    year={2011},
+    organization={IEEE}
+}
 
 @article{firesim2017RISCV,
     title={{FireSim}: Cycle-Accurate Rack-Scale System Simulation using {FPGAs} in the Public Cloud},
@@ -66,7 +66,8 @@ title={DeNovo: Rethinking the Memory Hierarchy for Disciplined Parallelism},}
 @article{kimevaluation,
     title={Evaluation of {RISC-V RTL} with {FPGA}-Accelerated Simulation},
     author={Kim, Donggyu and Celio, Christopher and Biancolin, David and Bachrach, Jonathan and Asanovic, Krste},
-    journal={CARRV 2017},
+    journal={Workshop on Computer Architecture Research with RISC-V (CARRV)},
+    year={2017}
 }
 
 @inproceedings{riscyoo,
@@ -75,5 +76,25 @@ title={DeNovo: Rethinking the Memory Hierarchy for Disciplined Parallelism},}
     booktitle={2018 51st Annual IEEE/ACM International Symposium on Microarchitecture (MICRO)},
     pages={68--81},
     year={2018},
+    organization={IEEE}
+}
+
+@article{translationCache,
+    title={Translation caching: skip, don't walk (the page table)},
+    author={Barr, Thomas W and Cox, Alan L and Rixner, Scott},
+    journal={ACM SIGARCH Computer Architecture News},
+    volume={38},
+    number={3},
+    pages={48--59},
+    year={2010},
+    publisher={ACM}
+}
+
+@inproceedings{wmm,
+    title={Weak Memory Models: Balancing Definitional Simplicity and Implementation Flexibility},
+    author={Zhang, Sizhuo and Vijayaraghavan, Muralidaran and Arvind},
+    booktitle={Parallel Architectures and Compilation Techniques (PACT), 2017 26th International Conference on},
+    pages={288--302},
+    year={2017},
     organization={IEEE}
 }

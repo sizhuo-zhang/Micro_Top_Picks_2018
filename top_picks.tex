@@ -7,6 +7,7 @@
 \usepackage{xcolor}
 
 % our packages
+\usepackage{todonotes}
 \usepackage[caption=false]{subfig}
 \usepackage{url}
 \usepackage{enumitem}
@@ -165,46 +166,67 @@ We want to encapsulate enough properties in the interface of each block so that 
 \section{Composable Modular Design (CMD) Framework}\label{sec:cmd}
 
 As mentioned in Section~\ref{sec:intro}, latency-insensitive frameworks are insufficient for processor designs because of races between microarchitectural events.
-We first study an example race case which involves the instruction issue queue (IQ) in the OOO processor, and then show how CMD extends module interfaces with concurrency properties to guarantee atomicity and solve the problem.
+We first study an example race case which involves the instruction issue queue (IQ) in the OOO processor, and then show how CMD maintains atomicity and solves the race problem by extending module interfaces with concurrency properties.
 
 \subsection{Race between Microarchitectural Events}\label{sec:cmd:iq}
-Figure shows the modules (blocks in the figure) and microarchitectural events (blobs in the figure) that participate in a race in the OOO processor.
+Figure~\ref{fig:race:modules} shows the modules (blocks in the figure) and microarchitectural events (blobs in the figure) that participate in a race in the OOO processor.
 Module IQ keeps unissued instructions and tracks whether their (physical) source registers are ready or not.
 Module RDYB keeps one bit for each physical register, indicating whether the register has valid data or not.
 Microarchitectural event {Rename} gets a new instruction from the decode stage, do renaming, \emph{checks} RDYB to see if the source registers of the instructions are ready, and \emph{enters} the instruction with the register-ready bits into IQ.
 Microarchitectural event {RegWrite} happens at the end of execution pipeline when an instruction gets the value for its destination register.
-The event \emph{sets} the corresponding bit in RDYB and \emph{wakes} up dependent instructions in IQ.
+The event \emph{sets} the corresponding bit in RDYB and \emph{wakes up} dependent instructions in IQ.
 (There are other actions performed by the two events, but they are unrelated to the race case we are going to discuss.)
 
-Both events are accessing the states in IQ and RDYB, forming a race.
+Both events are accessing the states in IQ and RDYB, thus forming a race.
+If event Rename does not happen atomically with respect to event RegWrite, then the race can lead to deadlock in the processor.
+Consider the case that event Rename is checking the source register $R$ of instruction $I$, while event RegWrite is writing register $R$.
+It is possible that event Rename first checks RDYB and finds $R$ not ready, then event RegWrite happens and cannot wake up instruction $I$ which is not yet in IQ, and finally event Rename enters $I$ into IQ.
+In this case, $I$ will stuck in IQ forever, i.e., the processor deadlocks.
+Figure~\ref{fig:race:deadlock} summarizes the deadlock scenario.
 
+It is difficult for latency-insensitive frameworks to keep the atomicity of events and resolve this race problem.
+A structural solution is to introduce bypass wires either in RDYB (to have Rename see the updated register-ready bits) or in IQ (to have RegWrite wake up instruction $I$).
+However, the bypass wires break latency insensitivity and reduces composability.
 
-\subsection{Conflict Matrix: Extending Module Interface with Concurrency Properties}
+\begin{figure}[!htb]
+    \subfloat[Modules involved in the race\label{fig:race:modules}]{\missingfigure{text}}\\
+    \subfloat[Operation sequence that leads to deadlock\label{fig:race:deadlock}]{\missingfigure{text}}
+    \caption{Race between microarchitectural events Rename and RegWrite in an OOO processor}\label{fig:race}
+\end{figure}
 
-\newpage
-
-Enforcing atomicity is challenging when two rules manipulate the same states.
-In such a case, it has to be ensured that the rules appear to execute one after another.
-Whether two rules can execute concurrently or not depends on the properties of the called methods.
+\subsection{Maintaining Atomicity in CMD}
+To resolve the race problem in Figure~\ref{fig:race}, CMD expresses events Rename and RegWrite as two separate rules and guarantees the atomicity of each rule.
+That is, event Rename will be expressed as rule Rename which calls method \emph{check} of RDYB and method \emph{enter} of IQ, and event RegWrite will be expressed as rule RegWrite which calls method \emph{set} of RDYB and method \emph{wakeup} of IQ.
+However, enforcing atomicity is challenging because the two rules manipulate the same states.
+In this case, it has to be ensured that the rules appear to execute one after another.
+Whether two rules can execute concurrently and in which order depend on the properties of the called methods.
 Thus, for each module, we use a \emph{Conflict Matrix (CM)}, which specifies which methods of the module can be called concurrently.
 The relation between each pair of methods may be described as follows:
 \begin{itemize}
-    \item \emph{conflict-free}: the methods do not manipulate the same state elements, and thus, can be called together;
+    \item \emph{conflict-free}: the methods do not manipulate the same state elements, and thus, can be called concurrently;
     \item \emph{conflicting}: the methods cannot be called in the same cycle;
-    \item \emph{happen-before}: the methods can be called together but functionally behave as if one executed before the other.
+    \item \emph{happen-before}: the methods can be called concurrently but functionally behave as if one executed before the other.
     This involves bypass logic inside the module in case a write method happens before a read method.
 \end{itemize}
 Given the CMs of all the modules, it is straightforward to derive the concurrency relation between every pair of rules.
 Support for CMD requires a stall signal in the glue logic to suppress the execution of one rule in a pair of conflicting rules.
 
-\noindent\textbf{Expressing CMD in Hardware Description Languages (HDLs):}
+Back to the race problem in Figure~\ref{fig:race}, if there is no bypass wire in the implementation of module IQ or module RDYB, then the CM of IQ will have method \emph{wakeup} happen before \emph{enter}, and the CM of RDYB will have metho \emph{check} happen before \emph{set}.
+In this case, rules Rename and RegWrite are conflicting with each other, and a stall signal will be generated by CMD to ensure atomicity.
+To make rules RegWrite and Rename execute concurrently, one solution is to change the CM of RDYB to have method \emph{set} happen before \emph{check}.
+This is, the implementation of module RDYB contains a bypass wire from method \emph{set} to \emph{check}.
+We will show shortly that this bypass wire can be generated implicitly in CMD.
+In this case, RegWrite will appear to execute before Rename.
+
+
+\subsection{Expressing CMD in Hardware Description Languages (HDLs)}
 We expressed the CMD framework in Bluespec System Verilog (BSV).
 The BSV compiler automatically (1) derives the CM for each module implementation, (2) derives the concurrency relations between each pair of rules according to the CMs, and (3) generates stall signals in the glue logic.
 \emph{The compiler statically resolves all the dynamic concurrency issues, making it possible to apply mechanical verification  techniques to designs.}
 
 It is possible to use other HDLs to express CMD, but then we may not get all the benefits of the automatic concurrency analysis done by the BSV compiler.
 
-\noindent\textbf{CMD Design Flow:}
+\subsection{CMD Design Flow}
 We develop designs in two phases.
 We first focus on functionality and do not try to get maximum hardware concurrency.
 After this phase, we often discover that two rules are conflicting, and this affects the performance adversely.
@@ -214,17 +236,17 @@ Instead, one can specify the order in which rules should execute, from which one
 Rosenband~\cite{rosenband2004ephemeral} has given a systematic way to transform the module implementation to satisfy a given CM using Ephemeral History Registers (EHRs) which implicitly introduce bypass logic.
 This transformation does not affect the functional correctness of the overall design.
 
-\noindent\textbf{Modular Refinement in CMD:}
+\subsection{Modular Refinement in CMD}
 When a refinement on a module does not affect the interface methods or the CM, the local correctness of the module guarantees the preservation of the overall correctness.
 If the CM of the refined module is changed, the BSV compiler can re-analyze the relations between rules and generate stall new signals to keep the design functionally correct.
 
 In some cases, a refinement may entail several modules simultaneously or may add new methods to a module for increased functionality.
-Any changes in interface methods implies that the rules that call these methods have to be changed.
+Any changes in interface methods imply that the rules that call these methods have to be changed.
 However, making this change does not require knowing the internal details of other modules, because other modules have been encapsulated by their interface specifications.
 
 In summary, by employing modules with guarded interfaces and atomic rules, CMD is able to provide strong composability and atomicity.
 
-\noindent\textbf{RiscyOO -- Application of CMD to Designing a RISC-V Out-of-Order Processor:}
+\section{RiscyOO: Application of CMD to Designing a RISC-V Out-of-Order Processor}
 Using the CMD framework, we built, \emph{RiscyOO}, a parameterized out-of-order superscalar cache-coherent multiprocessor.
 The processor uses the open-source RISC-V instruction set~\cite{riscv}.
 We prototyped RiscyOO on AWS F1 FPGA, and booted Linux on it.

@@ -175,29 +175,30 @@ Module IQ keeps unissued instructions and tracks whether their (physical) source
 Module RDYB keeps one bit for each physical register, indicating whether the register has valid data or not.
 Microarchitectural event {Rename} gets a new instruction from the decode stage, do renaming, \emph{checks} RDYB to see if the source registers of the instructions are ready, and \emph{enters} the instruction with the register-ready bits into IQ.
 Microarchitectural event {RegWrite} happens at the end of execution pipeline when an instruction gets the value for its destination register.
-The event \emph{sets} the corresponding bit in RDYB and \emph{wakes up} dependent instructions in IQ.
+The event \emph{sets} the corresponding bit in RDYB and \emph{wakes} up dependent instructions in IQ.
 (There are other actions performed by the two events, but they are unrelated to the race case we are going to discuss.)
 
 Both events are accessing the states in IQ and RDYB, thus forming a race.
 If event Rename does not happen atomically with respect to event RegWrite, then the race can lead to deadlock in the processor.
-Consider the case that event Rename is checking the source register $R$ of instruction $I$, while event RegWrite is writing register $R$.
-It is possible that event Rename first checks RDYB and finds $R$ not ready, then event RegWrite happens and cannot wake up instruction $I$ which is not yet in IQ, and finally event Rename enters $I$ into IQ.
+Consider the case in Figure~\ref{fig:race:deadlock}.
+Event Rename is processing instruction $I$ with physical source register $P3$, while event RegWrite is writing the same register $P3$.
+It is possible that event Rename first checks RDYB and finds $P3$ not ready, then event RegWrite happens and cannot wake up instruction $I$ which is not yet in IQ, and finally event Rename enters $I$ into IQ.
 In this case, $I$ will stuck in IQ forever, i.e., the processor deadlocks.
-Figure~\ref{fig:race:deadlock} summarizes the deadlock scenario.
 
 It is difficult for latency-insensitive frameworks to keep the atomicity of events and resolve this race problem.
 A structural solution is to introduce bypass wires either in RDYB (to have Rename see the updated register-ready bits) or in IQ (to have RegWrite wake up instruction $I$).
 However, the bypass wires break latency insensitivity and reduces composability.
 
 \begin{figure}[!htb]
-    \subfloat[Modules and microarchitectural events involved in the race. Modules are represented by blocks, while microarchitectural events are represented by clouds.\label{fig:race:modules}]{\missingfigure{}}\\
-    \subfloat[Operation sequence that leads to deadlock\label{fig:race:deadlock}]{\missingfigure{}}
+    \centering
+    \subfloat[Modules and microarchitectural events involved in the race. Modules IQ and RDYB are represented by blocks, while microarchitectural events Rename and RegWrite are represented by clouds. Event Rename calls method \emph{check} of RDYB and method \emph{enter} of IQ. Event RegWrite calls method \emph{set} of RDYB and method \emph{wake} of IQ.\label{fig:race:modules}]{\includegraphics[width=0.8\columnwidth]{figs/race_cropped.pdf}}\\
+    \subfloat[Operation sequence that leads to deadlock. Event Rename is processing instruction $I$ with source register P3 while event RegWrite is writing P3.\label{fig:race:deadlock}]{\includegraphics[width=\columnwidth]{figs/deadlock_cropped.pdf}}
     \caption{Race between microarchitectural events Rename and RegWrite in an OOO processor}\label{fig:race}
 \end{figure}
 
 \subsection{Maintaining Atomicity in CMD}
 To resolve the race problem in Figure~\ref{fig:race}, CMD expresses events Rename and RegWrite as two separate rules and guarantees the atomicity of each rule.
-That is, event Rename will be expressed as rule Rename which calls method \emph{check} of RDYB and method \emph{enter} of IQ, and event RegWrite will be expressed as rule RegWrite which calls method \emph{set} of RDYB and method \emph{wakeup} of IQ.
+That is, event Rename will be expressed as rule Rename which calls method \emph{check} of RDYB and method \emph{enter} of IQ, and event RegWrite will be expressed as rule RegWrite which calls method \emph{set} of RDYB and method \emph{wake} of IQ.
 However, enforcing atomicity is challenging because the two rules manipulate the same states.
 In this case, it has to be ensured that the rules appear to execute one after another.
 Whether two rules can execute concurrently and in which order depend on the properties of the called methods.
@@ -212,7 +213,7 @@ The relation between each pair of methods may be described as follows:
 Given the CMs of all the modules, it is straightforward to derive the concurrency relation between every pair of rules.
 Support for CMD requires a stall signal in the glue logic to suppress the execution of one rule in a pair of conflicting rules.
 
-Back to the race problem in Figure~\ref{fig:race}, if there is no bypass wire in the implementation of module IQ or module RDYB, then the CM of IQ will have method \emph{wakeup} happen before \emph{enter}, and the CM of RDYB will have metho \emph{check} happen before \emph{set}.
+Back to the race problem in Figure~\ref{fig:race}, if there is no bypass wire in the implementation of module IQ or module RDYB, then the CM of IQ will have method \emph{wake} happen before \emph{enter}, and the CM of RDYB will have metho \emph{check} happen before \emph{set}.
 In this case, rules Rename and RegWrite are conflicting with each other, and a stall signal will be generated by CMD to ensure atomicity.
 To make rules RegWrite and Rename execute concurrently, one solution is to change the CM of RDYB to have method \emph{set} happen before \emph{check}.
 This is, the implementation of module RDYB contains a bypass wire from method \emph{set} to \emph{check}.
@@ -275,7 +276,7 @@ Using a 32nm technology, the processor can be clocked over 1GHz.
 \section{Applications of CMD and RiscyOO}\label{sec:app}
 
 \subsection{Flexible Open-Source Processor IP}
-The software community has benefited for years from open source projects and permissive licensing. 
+The software community has benefited for years from open-source projects and permissive licensing. 
 This has allowed reusable libraries with proper APIs to flourish. 
 The open-source RISC-V ISA~\cite{riscv} is an attempt to open up the processor design community in a similar way.
 Although there are already several good and free implementations of RISC-V processors~\cite{rocketchip,boom,pulp}, which can be included directly as processor IP blocks when building an SoC, they are not enough to realize the full potential of RISC-V.

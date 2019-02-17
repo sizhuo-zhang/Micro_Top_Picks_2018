@@ -15,6 +15,7 @@
 \usepackage{boxedminipage}
 \usepackage{comment}
 \usepackage{multirow}
+\usepackage{xspace}
 \usepackage{microtype}
 \usepackage[normalem]{ulem}
 \usepackage{hyperref}
@@ -26,6 +27,8 @@
 \setlist{noitemsep,leftmargin=*}
 %\newenvironment{tightlist}{\begin{itemize}\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}{\end{itemize}}
 \newcommand{\mycomment}[1]{\emph{\textcolor{red}{[#1]}}}
+
+\newcommand{\flushInst}{\texttt{purge}\xspace}
     
 \begin{document}
 
@@ -291,7 +294,7 @@ This lowers the barrier for customizing processor designs, and would encourage m
 Furthermore, CMD allows people to contribute a variety of modules and replacements, which can be composed easily using atomic rules to form processors suitable for different use cases.
 As an example, we have made two refinements on RiscyOO, which we explain next.
 
-\noindent\textbf{Refining the TLB microarhictectures:}
+\noindent\textbf{Refining the TLB microarchitectures:}
 In the original design of RiscyOO, both L1 and L2 TLBs block on misses, and a L1 D TLB miss blocks the memory execution pipeline.
 To improve performance, we have changed the L1 D TLB and L2 TLB to support parallel miss handling and hit-under-miss.
 To reduce the TLB miss latency, we also included in the L2 TLB a split translation cache~\cite{translationCache}, which caches intermediate page walk results.
@@ -315,82 +318,37 @@ As the number of refinements on our design provided by us and the community grow
 The recent advent of side-channel attacks based on speculative microarchitectures have prompted architects to redesign processors for security.
 Such redesigns often manipulate microarchitectural states differently, and inevitably require changes in both software and hardware.
 The RiscyOO processor is a great platform for exploring security solutions because its speculative microarchitecture is as vulnerable to side-channel attacks as commercial processors.
-Its easy-to-modify modify design allows fast exploration of new security schemes which can be tested while running full software stack.
+Its easy-to-modify design allows fast exploration of new security schemes which can be tested while running full software stack.
 Since all the reported attacks can be replicated even in an FPGA implementation, a red team can directly try to break a supposedly ``secure'' processor running in the (AWS) cloud.
 
-For example, to perform isolation between protection domains Sanctum~\cite{sanctum} performs various microarchitectural sanitizations.
-In~\cite{mi6} we evaluated the performance cost of this extra-work by modifying RiscyOO.
+We have recently proposed the \emph{MI6}~\cite{mi6} secure processor architecture based on RiscyOO.
+The realistic microarchitecture of RiscyOO has helped us identify subtle issues in implementing security features, and CMD enables us to resolve problems swiftly.
+For example, we consider the new instruction \flushInst{} introduced in MI6.
+Software can use \flushInst{} to clean up local microarchitectural states in the processor core at every context switch to block side-channels between programs that runs on the core before and after the context switch.
+When the processor commits a \flushInst{} instruction, it first stops instruction-fetch and squashes all the in-flight instructions.
+After that, it starts flushing all the stateful modules including TLBs, L1 caches, branch predictors, etc.
+Instruction-fetch will be resumed after all the flushes have completed.
 
-For this section, we detail how to use CMD to implement the \verb|flush|
-instruction required by Sanctum to flush the L1s.
+Although the implementation of \flushInst{} could reuse the squash mechanism of exception handling, we discover subtle issues regarding the race between the flush of stateful modules and the activity of wrong-path instructions which are squashed but not yet removed from the pipeline.
+We consider the Fetch module in RiscyOO.
+Figure~\ref{fig:fetch} shows the 4-stage pipeline inside module Fetch.
+When a squash happens, the instructions in the FIFOs parallel with I-TLB and I-cache cannot be removed immediately; otherwise the in-flight requests in the I-TLB and I-cache will become orphans.
+Instead of propagating squash signals into module Fetch, the Rename rule will drain these wrong-path instructions gradually using an epoch-based scheme.
+However, a wrong-path instructions in the FIFO parallel with I-TLB can then issue a wrong-path request to I-cache in rule Fetch2, while the I-cache is being flushed.
+A straightforward implementation is to block the request interface of I-cache during the flush.
+However, this implementation is insecure, because the effects of the wrong-path instructions will remain in I-cache, thus creating a side-channel to influence the program after the context switch.
+Our implementation makes use of the guarded interface in CMD.
+The guard of the start-flush method of module Fetch can be true only when all the pipeline FIFOs in Fetch are empty.
+The guard ensures that flush can be initiated only after all wrong-path instructions have been drained from Fetch.
 
-% Convincing that it is hard to do in conventional design, but Sizhuo suggest it is useless
-% If the design under evaluation is not using CMD, flushing the L1 caches on
-% command of a new instruction \emph{flush} may end up being trickier
-% than what it sounds. An outline may be:
-% % My incompetence at standard verilog writing: Sizhuo could you make sure this is accurate?
-% \begin{itemize}
-% \item Adding stall signals on the fetch stage, keeping in mind that those signals should not break timing assumptions of the pipeline.
-% \item Adding a signal to know when the pipeline is empty, to be able to start a small state machine that should go over the line of the cache to write them back and put them into \emph{I} state.
-% \item Unstalling the fetch stage when the cache is done flushing.
-% \end{itemize}
-% 
-% All those may require intricate changes to the pipeline, especially if it is latency-sensitive.
-%   In RiscyOO, we only needed to identify the key architectural events
-% involved in the process of flushing the L1, which syntaxically and semantically shows up
-% very locally in rules.
+The implementation of \flushInst{} takes only a few days by one person.
+We are also able to quantify its performance costs by running realistic benchmarks on the AWS FPGA prototype~\cite{mi6}.
 
-
-The important invariant is that no requests or responses are allowed to fly in the
-cache while it is being flushed. That is to avoid refilling the cache with data that
-comes from before the \verb|flush| instruction.
-
-% Describe that implementations piggybacking on fence instruction -basically fence
-% in which we also start the state machine in the cache- is not enough because
-% it would not prevent frontend to speculate and bring in things in the cache? What do
-% you think Sizhuo?
-
-There are two sorts of requests: instruction and data, which comes
-from two sources:the Front End of the pipeline and the Load Store
-queue. If we unfold the previous invariant on those two modules we get
-the equivalent condition:
-\begin{itemize}
-\item The Load/Store queue is empty (with no wrongPath load) and is not going to issue any request or get responses
-\item The Front End of the pipeline is empty and is not going to emit any request or get responses
-\end{itemize}
-
-To put the core in a state where those two conditions are true, we can simply: %To guarantee that those conditions are going to stay true for the entire time of the flush we:
-\begin{itemize}
-\item Stop Fetching when the \verb|flush| instruction gets renamed.
-\item When \verb|flush| gets renamed, switch the Renaming stage to drop every incoming new instruction.  %I want to make sure that there is no backpressure coming from not renaming that would prevent an instruction fetch response to come back 
-\end{itemize}
-Indeed, as no new material will get in the machine, it is clear that after sufficiently
-much time the Load/Store queue and the Front End are going to be empty and stay
-empty until we allow fetching more instructions.
-
-Those require only minor changes to two rules: Renaming and Fetch.
-
-With those changes, we can safely execute \verb|flush| when:
-\begin{itemize}
-\item The \verb|flush| instruction is at the head of the ROB. %This is only required because of faults right? Because if LDSTQ is empty and FE empty 
-% we could actually emit the flush.
-\item The Load/Store queue is empty (including no wrongPath load)
-\item The Front End of the pipeline is empty.
-\end{itemize}
-
-The execution of \verb|flush| instruction starts a simple state machine in
-charge of iterating through the lines of the cache, downgrading every line to
-the \emph{Invalid} state.
-When the state machine completes it:
-\begin{itemize}
-\item Restarts the FrontEnd at the pc
-following the \verb|flush| instruction
-\item Reverts the Renaming stage into its normal functionality of renaming instructions - instead of dropping them.
-\end{itemize}
-Note that the \verb|flush| instruction can retire as soon as it started the
-machine and it does not need to wait for the state machine to complete.
-Thanks to CMD, this logical reasoning is straightforward to translate into code.
-
+\begin{figure}[!htb]
+    \centering
+    \includegraphics[width=\columnwidth]{figs/fetch_cropped.pdf}
+    \caption{The Fetch module in RiscyOO. Branch predictors, including the branch target buffer, tournament direction predictor and return address stack, are not shown.}\label{fig:fetch}
+\end{figure}
 
 \subsection{Substrate for Validating Software-Hardware Codesign}
 \begin{comment}
@@ -440,3 +398,78 @@ Any opinions, findings and conclusions or recommendations expressed in this mate
 \bibliography{top_picks}
 
 \end{document}
+
+% Original words by Thomas
+
+For example, to perform isolation between protection domains Sanctum~\cite{sanctum} performs various microarchitectural sanitizations.
+In~\cite{mi6} we evaluated the performance cost of this extra-work by modifying RiscyOO.
+
+For this section, we detail how to use CMD to implement the \verb|flush|
+instruction required by Sanctum to flush the L1s.
+
+% Convincing that it is hard to do in conventional design, but Sizhuo suggest it is useless
+% If the design under evaluation is not using CMD, flushing the L1 caches on
+% command of a new instruction \emph{flush} may end up being trickier
+% than what it sounds. An outline may be:
+% % My incompetence at standard verilog writing: Sizhuo could you make sure this is accurate?
+% \begin{itemize}
+% \item Adding stall signals on the fetch stage, keeping in mind that those signals should not break timing assumptions of the pipeline.
+% \item Adding a signal to know when the pipeline is empty, to be able to start a small state machine that should go over the line of the cache to write them back and put them into \emph{I} state.
+% \item Unstalling the fetch stage when the cache is done flushing.
+% \end{itemize}
+% 
+% All those may require intricate changes to the pipeline, especially if it is latency-sensitive.
+%   In RiscyOO, we only needed to identify the key architectural events
+% involved in the process of flushing the L1, which syntaxically and semantically shows up
+% very locally in rules.
+
+
+The important invariant is that no requests or responses are allowed to fly in the
+cache while it is being flushed. That is to avoid refilling the cache with data that
+comes from before the \verb|flush| instruction.
+
+% Describe that implementations piggybacking on fence instruction -basically fence
+% in which we also start the state machine in the cache- is not enough because
+% it would not prevent frontend to speculate and bring in things in the cache? What do
+% you think Sizhuo?
+
+There are two sorts of requests: instruction and data, which comes
+from two sources:the Front End of the pipeline and the Load Store
+queue. If we unfold the previous invariant on those two modules we get
+the equivalent condition:
+\begin{itemize}
+    \item The Load/Store queue is empty (with no wrongPath load) and is not going to issue any request or get responses
+    \item The Front End of the pipeline is empty and is not going to emit any request or get responses
+\end{itemize}
+
+To put the core in a state where those two conditions are true, we can simply: %To guarantee that those conditions are going to stay true for the entire time of the flush we:
+\begin{itemize}
+    \item Stop Fetching when the \verb|flush| instruction gets renamed.
+    \item When \verb|flush| gets renamed, switch the Renaming stage to drop every incoming new instruction.  %I want to make sure that there is no backpressure coming from not renaming that would prevent an instruction fetch response to come back 
+\end{itemize}
+Indeed, as no new material will get in the machine, it is clear that after sufficiently
+much time the Load/Store queue and the Front End are going to be empty and stay
+empty until we allow fetching more instructions.
+
+Those require only minor changes to two rules: Renaming and Fetch.
+
+With those changes, we can safely execute \verb|flush| when:
+\begin{itemize}
+    \item The \verb|flush| instruction is at the head of the ROB. %This is only required because of faults right? Because if LDSTQ is empty and FE empty 
+    % we could actually emit the flush.
+    \item The Load/Store queue is empty (including no wrongPath load)
+    \item The Front End of the pipeline is empty.
+\end{itemize}
+
+The execution of \verb|flush| instruction starts a simple state machine in
+charge of iterating through the lines of the cache, downgrading every line to
+the \emph{Invalid} state.
+When the state machine completes it:
+\begin{itemize}
+    \item Restarts the FrontEnd at the pc
+    following the \verb|flush| instruction
+    \item Reverts the Renaming stage into its normal functionality of renaming instructions - instead of dropping them.
+\end{itemize}
+Note that the \verb|flush| instruction can retire as soon as it started the
+machine and it does not need to wait for the state machine to complete.
+Thanks to CMD, this logical reasoning is straightforward to translate into code.

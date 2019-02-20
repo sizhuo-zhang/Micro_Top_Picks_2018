@@ -301,12 +301,13 @@ To improve performance, we have changed the L1 D TLB and L2 TLB to support paral
 To reduce the TLB miss latency, we also included in the L2 TLB a split translation cache~\cite{translationCache}, which caches intermediate page walk results.
 These refinements not only change the internal implementations of TLBs significantly, but also affect the interfaces of TLBs, e.g., the L1 D TLB sends responses out of order.
 Thanks to CMD, the changes in TLBs affect only rules that call the TLB interfaces (e.g., rules AddrCalc and UpdateLSQ in Figure~\ref{fig:ooo:core}), and we were able to commit these changes within two weeks by one person.
-We evaluated the performance of these TLB refinements using SPEC CINT2006 benchmarks.
+We evaluated the performance of these TLB refinements using SPEC CINT2006 benchmarks~\cite{riscyoo}.
 Figure~\ref{fig:tlb-config} shows the configuration of the baseline processor which has blocking TLBs.
 Figure~\ref{fig:tlb-refine} shows the details of the refinements, i.e., the number of parallel misses of the TLBs and the size of the translation cache.
 Figure~\ref{fig:tlb-data} shows the relative performance improvement caused by the TLB refinements.
 The improvement is significant: the average is 31.6\% (right-most column), and the maximum even reaches 98\% (benchmark astar).
-Detailed analysis can be found in~\cite{riscyoo}.
+
+%Detailed analysis can be found in~\cite{riscyoo}.
 
 \begin{figure}[!htb]
     \centering

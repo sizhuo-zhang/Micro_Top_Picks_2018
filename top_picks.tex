@@ -257,11 +257,12 @@ The processor uses the open-source RISC-V instruction set~\cite{riscv}.
 Figure~\ref{fig:ooo} shows the structure of RiscyOO multiprocessor.
 The OOO core contains 2-way superscalar fetch/decode/commit, 4 execution pipelines (only two are shown for simplicity), and two-level private TLBs.
 The core also performs various branch predictions, and execute loads speculatively.
-Multiple cores are connected to a non-blocking coherent cache hierarchy to form a multiprocessor.
+Figure~\ref{fig:tlb-config} shows one possible configuration of a single core.
+Multiple cores can be connected to a non-blocking coherent cache hierarchy to form a multiprocessor.
 
 \begin{figure}[!htb]
     \centering
-    \subfloat[Top-level moduels and rules of the OOO core. Modules are represented by rectangles, while rules are represented  by clouds. The core contains four execution pipelines: two for ALU and branch instruction, one for memory instructions, and one for floating point and complex integer instructions (e.g. multiplication). Only two pipelines are shown here for simplicity.\label{fig:ooo:core}]{\includegraphics[width=\columnwidth]{figs/core_cropped.pdf}}\\
+    \subfloat[Top-level moduels and rules of the OOO core. Modules are represented by rectangles, while rules are represented  by clouds. The core contains four execution pipelines: two for ALU and branch instructions, one for memory instructions, and one for floating point and complex integer instructions (e.g. multiplication). Only two pipelines are shown here for simplicity.\label{fig:ooo:core}]{\includegraphics[width=\columnwidth]{figs/core_cropped.pdf}}\\
     \subfloat[Connecting OOO cores to form a multiprocessor\label{fig:ooo:mem}]{\includegraphics[width=0.9\columnwidth]{figs/mem_cropped.pdf}}
     \caption{RiscyOO multiprocessor}\label{fig:ooo}
 \end{figure}
@@ -300,7 +301,47 @@ To improve performance, we have changed the L1 D TLB and L2 TLB to support paral
 To reduce the TLB miss latency, we also included in the L2 TLB a split translation cache~\cite{translationCache}, which caches intermediate page walk results.
 These refinements not only change the internal implementations of TLBs significantly, but also affect the interfaces of TLBs, e.g., the L1 D TLB sends responses out of order.
 Thanks to CMD, the changes in TLBs affect only rules that call the TLB interfaces (e.g., rules AddrCalc and UpdateLSQ in Figure~\ref{fig:ooo:core}), and we were able to commit these changes within two weeks by one person.
-Our evaluation shows that the refinements on TLBs can improve performance by 29\% on average~\cite{riscyoo}.
+We evaluated the performance of these TLB refinements using SPEC CINT2006 benchmarks.
+Figure~\ref{fig:tlb-config} shows the configuration of the baseline processor which has blocking TLBs.
+Figure~\ref{fig:tlb-refine} shows the details of the refinements, i.e., the number of parallel misses of the TLBs and the size of the translation cache.
+Figure~\ref{fig:tlb-data} shows the relative performance improvement caused by the TLB refinements.
+The improvement is significant: the average is 31.6\% (right-most column), and the maximum even reaches 98\% (benchmark astar).
+Detailed analysis can be found in~\cite{riscyoo}.
+
+\begin{figure}[!htb]
+    \centering
+    \subfloat[Base processor configuration\label{fig:tlb-config}]{%
+    \footnotesize
+    \begin{tabular}{|l|l|}
+        \hline
+        Front-end & 2-wide superscalar fetch/decode/rename \\
+                  & 256-entry direct-mapped BTB \\
+                  & tournament branch predictor as in Alpha 21264 \\
+                  & 8-entry return address stack \\ \hline
+        Execution & 64-entry ROB with 2-way insert/commit \\
+        Engine    & Total 4 pipelines: 2 ALU, 1 MEM, 1 FP/MUL/DIV \\
+                  & 16-entry IQ per pipeline \\ \hline
+        Ld-St Unit& 24-entry LQ, 14-entry SQ, 4-entry SB (each 64B wide) \\ \hline
+        TLBs      & Both L1 I and D are 32-entry, fully associative \\
+                  & L2 is 2048-entry, 4-way associative \\ \hline
+        L1 Caches & Both I and D are 32KB, 8-way associative, max 8 requests \\ \hline
+        L2 Cache  & 1MB, 16-way, max 16 requests, coherent with I and D \\ \hline
+        Memory    & 120-cycle latency, max 24 req (12.8GB/s for 2GHz clock) \\ \hline
+    \end{tabular}%
+    }\\
+    \subfloat[Summary of TLB refinements\label{fig:tlb-refine}]{%
+    \footnotesize
+    \begin{tabular}{|l|l|}
+        \hline
+        L1 D TLB & Max 4 misses \\ \hline
+        L2 TLB & Max 2 misses, max 2 page walks in parallel \\ \hline
+        Translation & 24 fully associate entries for each non-leaf page-walk level \\
+        Cache       & Total 2 non-leaf page-walk levels \\ \hline
+    \end{tabular}%
+    }\\
+    \subfloat[Performance improvement (in percentage) caused by the TLB refinements\label{fig:tlb-data}]{\includegraphics[width=\columnwidth]{figs/spec_tlb_opt_improve.pdf}}
+    \caption{Evaluation of TLB refinements\label{fig:tlb}}
+\end{figure}
 
 \noindent\textbf{Adding support for TSO:}
 The original design of RiscyOO supported only a weak memory model WMM~\cite{wmm}.

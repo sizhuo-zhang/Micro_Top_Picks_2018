@@ -392,11 +392,12 @@ We are also able to quantify its performance costs by running realistic benchmar
     \caption{The Fetch module in RiscyOO. Branch predictors, including the branch target buffer, tournament direction predictor and return address stack, are not shown.}\label{fig:fetch}
 \end{figure}
 
-\subsection{Substrate for Validating Software-Hardware Codesign}
 \begin{comment}
-When improving the PPA of processors, hardware changes that are transparent to software are most welcome, and if the benefits are high enough, they can be absorbed into commercial designs gradually.
-However, with the end of Moore's law, hardware designs are facing more and more critical constraints, and it has become very difficult to come up with such transparent hardware changes to improve PPA.
-\end{comment}
+\subsection{Substrate for Validating Software-Hardware Codesign}
+
+%When improving the PPA of processors, hardware changes that are transparent to software are most welcome, and if the benefits are high enough, they can be absorbed into commercial designs gradually.
+%However, with the end of Moore's law, hardware designs are facing more and more critical constraints, and it has become very difficult to come up with such transparent hardware changes to improve PPA.
+
 As many recent research proposals show, increasingly people have come to appreciate the importance of codesigning software and hardware.
 However, these software-hardware codesign proposals meet with skepticism because of concerns about the interaction of architectural changes with the OS and other existing software/hardware stacks.
 For example, proposals on adaptive cache architectures~\cite{Jigsaw} often need to color pages, and it is natural to be concerned about the changes in OS codes that are needed to do this correctly, or how the changes interact with super pages which can benefit applications with large memory footprints.
@@ -416,7 +417,7 @@ Since RiscyOO boots Linux, researchers now have the opportunity to truly modify 
 Furthermore, the CMD framework used to build RiscyOO allows researchers to implement the proposed changes in a short time.
 In addition, the realistic microarchitectures of RiscyOO can help eliminate concerns on whether they have omitted hardware features that may affect the proposal adversely.
 Last but not the least, the high speed of RiscyOO (40MHz on AWS F1 FPGA) makes evaluation of large realistic benchmarks possible.
-
+\end{comment}
 
 \section{Conclusion}\label{sec:conclude}
 To fully benefit from the openness of RISC-V, the architecture community needs a framework where many different people can cooperate to try out new ideas in real hardware.

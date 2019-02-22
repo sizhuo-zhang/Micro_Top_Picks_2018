@@ -43,34 +43,6 @@
 \thispagestyle{plain}
 \pagestyle{plain}
 
-\begin{comment}
-\section{Structure}
-\begin{enumerate}
-    \item Introduction:
-    \begin{enumerate}
-        \item Challenge in processor design.
-        \item Structural design $\xrightarrow{}$ latency insensitive  $\xrightarrow{}$ microarchitectural races.
-        \item CMD.
-    \end{enumerate}
-    \item Related works. (Half a column)
-    \item CMD:
-    \begin{enumerate}
-        \item Motivating example for microarchitectural races: IQ. (Half a column).
-        \item Conflict matrix: capture concurrency properties in module interfaces.
-        \item CMD workflow, BSV and other HDLs, supported modular refinement.
-    \end{enumerate}
-    \item RiscyOO: figures (caption: we can duplicate ALU pipeline) and summary of performance numbers.
-    \item Application of CMD:
-    \begin{enumerate}
-        \item Refine processor IP: TLB (the changes being made).
-        \item Security: MI6.
-        \item Validate SW-HW codesign.
-    \end{enumerate}
-    \item Conclusion.
-    \item Acknowledgement.
-\end{enumerate}
-\end{comment}
-
 \begin{abstract}
     % Maximum 149 words
     We present a framework called Composable Modular Design (CMD) to facilitate the design of out-of-order processors. In CMD, (1) The interface methods of modules provide instantaneous access and perform atomic updates to the state elements inside the module; (2) Every interface method is guarded, i.e., it cannot be applied unless it is ready; and (3) Modules are composed by atomic rules which call interface methods of different modules. A rule either successfully updates the state of all the called modules or does nothing.
@@ -179,13 +151,13 @@ Module RDYB keeps one bit for each physical register, indicating whether the reg
 Microarchitectural event {Rename} gets a new instruction from the decode stage, does renaming, \emph{checks} RDYB to see if the source registers of the instructions are ready, and \emph{enters} the instruction with the register-ready bits into IQ.
 Microarchitectural event {RegWrite} happens at the end of execution pipeline when an instruction gets the value for its destination register.
 The event \emph{sets} the corresponding bit in RDYB and \emph{wakes} up dependent instructions in IQ.
-(There are other actions performed by the two events, but they are unrelated to the race case we are going to discuss.)
+(There are other actions performed by the two events, but they are unrelated to the race case.)
 
 Both events are accessing the states in IQ and RDYB, thus forming a race.
-If event Rename does not happen atomically with respect to event RegWrite, then the race can lead to deadlock in the processor.
+If Rename does not happen atomically with respect to RegWrite, then the race can lead to deadlock in the processor.
 Consider the case in Figure~\ref{fig:race:deadlock}.
-Event Rename is processing instruction $I$ with physical source register $P3$, while event RegWrite is writing the same register $P3$.
-It is possible that event Rename first checks RDYB and finds $P3$ not ready, then event RegWrite happens and cannot wake up instruction $I$ which is not yet in IQ, and finally event Rename enters $I$ into IQ.
+Rename is processing instruction $I$ with physical source register $P3$, while RegWrite is writing the same register $P3$.
+It is possible that Rename first checks RDYB and finds $P3$ not ready, then RegWrite happens and cannot wake up instruction $I$ which is not yet in IQ, and finally Rename enters $I$ into IQ.
 In this case, $I$ will stuck in IQ forever, i.e., the processor deadlocks.
 
 It is difficult for latency-insensitive frameworks to keep the atomicity of events and resolve this race problem.
@@ -267,7 +239,7 @@ Multiple cores can be connected to a non-blocking coherent cache hierarchy to fo
     \caption{RiscyOO multiprocessor}\label{fig:ooo}
 \end{figure}
 
-We prototyped RiscyOO on AWS F1 FPGA, and booted Linux on it.
+We prototyped RiscyOO on AWS F1 FPGA~\cite{awsf1}, and booted Linux on it.
 To evaluate the performance of RiscyOO, we run SPEC CINT2006 benchmarks (ref input size, no sampling) which ran trillions of instructions on our FPGA prototype without any hardware failures.
 Our evaluation shows that RiscyOO is much faster than in-order processors, and matches state-of-the-art academic out-of-order processors.
 However, commercial ARM-based processors are 40\% faster than RiscyOO on average in terms of cycle counts, possibly because of the higher superscalarity and more sophisticated microarchitectures.
@@ -296,15 +268,15 @@ Furthermore, CMD allows people to contribute a variety of modules and replacemen
 As an example, we have made two refinements on RiscyOO, which we explain next.
 
 \noindent\textbf{Refining the TLB microarchitectures:}
-In the original design of RiscyOO, both L1 and L2 TLBs block on misses, and an L1 D TLB miss blocks the memory execution pipeline.
-To improve performance, we have changed the L1 D TLB and L2 TLB to support parallel miss handling and hit-under-miss.
-To reduce the TLB miss latency, we also included in the L2 TLB a split translation cache~\cite{translationCache}, which caches intermediate page walk results.
-These refinements not only change the internal implementations of TLBs significantly, but also affect the interfaces of TLBs, e.g., the L1 D TLB sends responses out of order.
+In the original design of RiscyOO, both L1 and L2 TLBs block on misses, and an L1-D TLB miss blocks the memory execution pipeline.
+To improve performance, we have changed the L1-D TLB and L2 TLB to support parallel miss handling and hit-under-miss.
+To reduce the TLB miss latency, we also included in the L2 TLB a split translation cache~\cite{translationCache}, which caches intermediate page-walk results.
+These refinements not only change the internal implementations of TLBs significantly, but also affect the interfaces of TLBs, e.g., the L1-D TLB sends responses out of order.
 Thanks to CMD, the changes in TLBs affect only rules that call the TLB interfaces (e.g., rules AddrCalc and UpdateLSQ in Figure~\ref{fig:ooo:core}), and we were able to commit these changes within two weeks by one person.
-We evaluated the performance impact of these TLB refinements using SPEC CINT2006 benchmarks~\cite{riscyoo}.
+We evaluated the performance impact of these refinements using SPEC CINT2006 benchmarks~\cite{riscyoo}.
 Figure~\ref{fig:tlb-config} shows the configuration of the baseline processor which has blocking TLBs.
-Figure~\ref{fig:tlb-refine} shows the details of the refinements, i.e., the number of parallel misses of the TLBs and the size of the translation cache.
-Figure~\ref{fig:tlb-data} shows the relative performance improvement caused by the TLB refinements.
+Figure~\ref{fig:tlb-refine} shows the details of the refinements, i.e., the number of parallel misses of TLBs and the size of the translation cache.
+Figure~\ref{fig:tlb-data} shows the relative performance improvement caused by the refinements.
 The improvement turns out to be significant: the average is 31.6\% (right-most column), and the maximum even reaches 98\% (benchmark astar).
 
 %Detailed analysis can be found in~\cite{riscyoo}.
@@ -334,7 +306,7 @@ The improvement turns out to be significant: the average is 31.6\% (right-most c
     \footnotesize
     \begin{tabular}{|l|l|}
         \hline
-        L1 D TLB & Max 4 misses \\ \hline
+        L1 D-TLB & Max 4 misses \\ \hline
         L2 TLB & Max 2 misses, max 2 page walks in parallel \\ \hline
         Translation & 24 fully associate entries for each non-leaf page-walk level \\
         Cache       & Total 2 non-leaf page-walk levels \\ \hline
@@ -346,12 +318,12 @@ The improvement turns out to be significant: the average is 31.6\% (right-most c
 
 \noindent\textbf{Adding support for TSO:}
 The original design of RiscyOO supported only weak memory models, e.g., WMM~\cite{wmm} or GAM~\cite{gam}.
-To make RiscyOO support TSO, we have changed the design of the load-store unit and L1 D cache so that cache evictions from L1 D will be snooped by the load-store queue (LSQ in Figure~\ref{fig:ooo:core}).
+To make RiscyOO support TSO, we have changed the design of the load-store unit and L1-D cache so that cache evictions from L1-D will be snooped by the load-store queue (LSQ in Figure~\ref{fig:ooo:core}).
 These changes require adding new interface methods, e.g., a new method in LSQ that kills eagerly executed loads when a cache eviction happens.
 This new method can race with other existing methods in LSQ, e.g., the one that issues a load from LSQ.
 Thanks to CMD, we can resolve these race conditions easily by relying on conflict matrices and rule-atomicity.
 The TSO support was added by one person in two weeks.
-We have run PARSEC benchmarks on a 4-core configuration of RiscyOO, and showed that the TSO refinement has little performance impact~\cite{riscyoo}.
+We ran PARSEC benchmarks on a 4-core configuration of RiscyOO, and showed that the TSO refinement has little performance impact~\cite{riscyoo}.
 
 To foster the open-source community, we have released our building blocks for the RiscyOO processor at \texttt{\url{https://github.com/csail-csg/riscy-OOO}} under the MIT License.
 As the number of refinements on our design provided by us and the community grows over time, we hope these building blocks can become a toolbox for computer architects and SoC designers.
@@ -362,12 +334,12 @@ Such redesigns often manipulate microarchitectural states differently, and inevi
 The RiscyOO processor is a great platform for exploring security solutions because its speculative microarchitecture is as vulnerable to side-channel attacks as commercial processors.
 Its easy-to-modify design allows fast exploration of new security schemes which can be tested while running full software stack.
 Since all the reported attacks can be replicated even in an FPGA implementation, a red team can directly try to break a supposedly ``secure'' processor running in the (AWS) cloud.
-Last but not the least, the high speed of RiscyOO (40MHz on AWS F1 FPGA) makes it possible to evaluate security schemes using large realistic benchmarks.
+Last but not the least, the high speed of RiscyOO (40MHz on AWS FPGA) makes it possible to evaluate security schemes using large realistic benchmarks.
 
 We have recently proposed the \emph{MI6}~\cite{mi6} secure processor architecture based on RiscyOO.
 The realistic microarchitecture of RiscyOO has helped us identify subtle issues in implementing security features, and CMD enables us to resolve problems swiftly.
 For example, we consider the new instruction \flushInst{} introduced in MI6.
-Software can use \flushInst{} to clean up local microarchitectural states in the processor core at every context switch to block side-channels between programs that runs on the core before and after the context switch.
+Software can use \flushInst{} to scrub local microarchitectural states in the processor core at every context switch to block side-channels between programs that runs on the core before and after the context switch.
 When the processor commits a \flushInst{} instruction, it first stops instruction-fetch and squashes all the in-flight instructions.
 After that, it starts flushing all the stateful modules including TLBs, L1 caches, branch predictors, etc.
 Instruction-fetch will be resumed after all the flushes have completed.
@@ -385,8 +357,8 @@ The guard of the start-flush method of module Fetch can be true only when all th
 The guard ensures that flush can be initiated only after all wrong-path instructions have been drained from Fetch.
 \emph{The openness of RiscyOO microarchitecture helps us avoid creating new side-channels while blocking old ones}.
 
-The implementation of \flushInst{} takes only a few days by one person.
-We are also able to quantify its performance costs by running realistic benchmarks on the AWS FPGA prototype~\cite{mi6}.
+The implementation of \flushInst{} took only a few days by one person.
+We also quantified its performance costs by running SPEC benchmarks on the AWS-FPGA prototype~\cite{mi6}.
 
 \begin{figure}[!htb]
     \centering
@@ -418,7 +390,7 @@ Our RiscyOO processor would be a great substrate for building such prototypes.
 Since RiscyOO boots Linux, researchers now have the opportunity to truly modify the OS and test the feasibility of the changes.
 Furthermore, the CMD framework used to build RiscyOO allows researchers to implement the proposed changes in a short time.
 In addition, the realistic microarchitectures of RiscyOO can help eliminate concerns on whether they have omitted hardware features that may affect the proposal adversely.
-Last but not the least, the high speed of RiscyOO (40MHz on AWS F1 FPGA) makes evaluation of large realistic benchmarks possible.
+Last but not the least, the high speed of RiscyOO (40MHz on AWS FPGA) makes evaluation of large realistic benchmarks possible.
 \end{comment}
 
 \section{Conclusion}\label{sec:conclude}
@@ -433,10 +405,10 @@ Both the synthesis results and the performance results are very encouraging, and
 
 \section*{Acknowledgment}
 We thank all the anonymous reviewers for their helpful feedbacks on improving this paper.
-We have also benefited from the help from Jamey Hicks and Muralidaran Vijayaraghavan.
-We would like to particularly thank Bluespec, Inc. for providing free tool licenses.
-This research is supported by the Defense Advanced Research Projects Agency (DARPA) under Contract No. FA8750-16-2-0004 (program BRASS) and Contract No. HR001118C0018 (program SSITH).
-Any opinions, findings and conclusions or recommendations expressed in this material are those of the authors and do not necessarily reflect the views of the Defense Advanced Research Projects Agency (DARPA).
+We also benefited from the help from Jamey Hicks and Muralidaran Vijayaraghavan.
+We want to thank Bluespec, Inc. for providing free tool licenses.
+This research is supported by the Defense Advanced Research Projects Agency (DARPA) under Contract No. FA8750-16-2-0004 and Contract No. HR001118C0018.
+Any opinions, findings and conclusions or recommendations expressed in this material are those of the authors and do not necessarily reflect the views of DARPA.
 
 
 \bibliographystyle{IEEEtran}

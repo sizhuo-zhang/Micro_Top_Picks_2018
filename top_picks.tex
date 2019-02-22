@@ -345,7 +345,7 @@ The improvement turns out to be significant: the average is 31.6\% (right-most c
 \end{figure}
 
 \noindent\textbf{Adding support for TSO:}
-The original design of RiscyOO supported only a weak memory model WMM~\cite{wmm}.
+The original design of RiscyOO supported only weak memory models, e.g., WMM~\cite{wmm} or GAM~\cite{gam}.
 To make RiscyOO support TSO, we have changed the design of the load-store unit and L1 D cache so that cache evictions from L1 D will be snooped by the load-store queue (LSQ in Figure~\ref{fig:ooo:core}).
 These changes requires adding new interface methods, e.g., a new method in LSQ that kills eagerly executed loads when a cache eviction happens.
 This new method can race with other existing methods in LSQ, e.g., the one that issues a load from LSQ.
@@ -362,6 +362,7 @@ Such redesigns often manipulate microarchitectural states differently, and inevi
 The RiscyOO processor is a great platform for exploring security solutions because its speculative microarchitecture is as vulnerable to side-channel attacks as commercial processors.
 Its easy-to-modify design allows fast exploration of new security schemes which can be tested while running full software stack.
 Since all the reported attacks can be replicated even in an FPGA implementation, a red team can directly try to break a supposedly ``secure'' processor running in the (AWS) cloud.
+Last but not the least, the high speed of RiscyOO (40MHz on AWS F1 FPGA) makes possible the evaluation of security schemes using large realistic benchmarks.
 
 We have recently proposed the \emph{MI6}~\cite{mi6} secure processor architecture based on RiscyOO.
 The realistic microarchitecture of RiscyOO has helped us identify subtle issues in implementing security features, and CMD enables us to resolve problems swiftly.
@@ -382,6 +383,7 @@ However, this implementation is insecure, because the effects of the wrong-path 
 Our implementation makes use of the guarded interface in CMD.
 The guard of the start-flush method of module Fetch can be true only when all the pipeline FIFOs in Fetch are empty.
 The guard ensures that flush can be initiated only after all wrong-path instructions have been drained from Fetch.
+\emph{The openness of RiscyOO microarchitecture helps us avoid creating new side-channels while blocking old ones}.
 
 The implementation of \flushInst{} takes only a few days by one person.
 We are also able to quantify its performance costs by running realistic benchmarks on the AWS FPGA prototype~\cite{mi6}.
@@ -442,8 +444,11 @@ Any opinions, findings and conclusions or recommendations expressed in this mate
 
 \end{document}
 
-% Original words by Thomas
 
+
+%%%%
+% Original words by Thomas
+%%%%
 For example, to perform isolation between protection domains Sanctum~\cite{sanctum} performs various microarchitectural sanitizations.
 In~\cite{mi6} we evaluated the performance cost of this extra-work by modifying RiscyOO.
 

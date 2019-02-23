@@ -130,12 +130,12 @@ Section~\ref{sec:conclude} concludes the paper.
 
 \section{Related Work}\label{sec:related}
 There is a long history of processors that were designed in the academic setting.
-Many of these attempts were focused on demonstrating new architectures; there was no expectation that other people would improve or refine an existing implementation.
-Other attempts aimed at providing open-source processors and a corresponding framework for configuring the design.
-For example, the Rocket chip generator~\cite{rocketchip} can generate SoCs with RISC-V cores that are parameterized by caches, branch predictors, degree of superscalarity, and ISA extensions.
-Fabscalar~\cite{fabscalar} allows one to assemble a variety of superscalar designs from a set of predefined pipeline-stage blocks.
-FabScalar has been successful in generating heterogeneous cores, but the predefined blocks are not intended to be modified themselves.
-PULP~\cite{pulp} is a platform for designing low-power IoT SoCs, but the processor cores are not intended to be refined within the framework.
+Many of these attempts were focused on demonstrating new architectures; there was no expectation that other people would refine these implementations.
+Other attempts aimed at providing open-source processors and corresponding frameworks for configuring the designs.
+For example, the Rocket chip generator~\cite{rocketchip} can generate SoCs with RISC-V cores that are parameterized by caches, branch predictors, ISA extensions, etc.
+Fabscalar~\cite{fabscalar} allows one to assemble different superscalar designs from a set of predefined pipeline-stage blocks.
+FabScalar has been successful in generating heterogeneous cores, but the predefined blocks are not intended to be modified.
+PULP~\cite{pulp} is a platform for designing low-power SoCs, but the processor cores are not intended to be refined within the framework.
 
 All these frameworks are structural compositions of predefined building blocks.
 The goal of our CMD framework is more ambitious, in the sense that, in addition to parameterized designs, we want the users to be able to incorporate new microarchitectural ideas.

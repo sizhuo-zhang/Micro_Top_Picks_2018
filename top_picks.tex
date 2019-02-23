@@ -64,7 +64,7 @@ Most processors~\cite{rocketchip,boom,fabscalar,pulp} have been designed in a \e
 The implementation of one module may make implicit assumptions about the timing of input signals coming from other modules, and thus, the composed processor functions correctly if each module meets its timing assumptions and functionality.
 Such timing assumptions are difficult to specify, which makes the mechanical verification of timing-assumption violations impossible.
 In order to avoid rigid timing assumptions, some designers use the latency-insensitive framework, where modules communicate with each other using FIFOs.
-In such frameworks a module cannot depend on the timing of other modules, and that significantly improves the flexibility in modular refinement.
+In such frameworks, a module cannot depend on the timing of other modules, and that significantly improves the flexibility in modular refinement.
 Although the latency-insensitive framework has proven useful in building hardware accelerators, it is not expressive enough for processors. 
 In processors, a microarchitectural event may need to access and modify the states in multiple modules \emph{atomically}. 
 This is because different microarchitectural events may race with each other in accessing the states inside modules, and such ``data races'' can make the processor implementation incorrect if an event fails to perform all its accesses atomically with respect to other events.
@@ -116,7 +116,7 @@ This paper makes the following contributions:
 \begin{enumerate}
     \item Composable Modular Design (CMD) flow, a new framework for implementing complex and realistic microarchitectures;
     
-    \item A parameterized and modular OOO processor, \emph{RiscyOO} built using the CMD framework, which is released at \texttt{\url{https://github.com/csail-csg/riscy-OOO}} under the MIT License;
+    \item A parameterized and modular OOO processor, \emph{RiscyOO}, built using the CMD framework, which is released at \texttt{\url{https://github.com/csail-csg/riscy-OOO}} under the MIT License;
     
     \item Applications of the CMD framework and the RiscyOO processor.
 \end{enumerate}
@@ -139,14 +139,14 @@ PULP~\cite{pulp} is a platform for designing low-power IoT SoCs, but the process
 
 All these frameworks are structural compositions of predefined building blocks.
 The goal of our CMD framework is more ambitious, in the sense that, in addition to parameterized designs, we want the users to be able to incorporate new microarchitectural ideas.
-For example, replace a central instruction issue queue in an OOO design, with several instruction issue queues, one for each functional unit.
+For example, replace a centralized instruction-issue queue with several instruction-issue queues, one for each functional unit.
 Traditionally, making such changes requires a deep knowledge of the internal functioning of the other blocks, otherwise, the processor is unlikely to function. 
 We want to encapsulate enough properties in the interface of each block so that it can be composed without understanding the internal details.
 
 \section{Composable Modular Design (CMD) Framework}\label{sec:cmd}
 
 As mentioned in Section~\ref{sec:intro}, latency-insensitive frameworks are insufficient for processor designs because of races between microarchitectural events.
-We first study an example race case which involves the instruction issue queue (IQ) in the OOO processor, and then show how CMD maintains atomicity and solves the race problem by extending module interfaces with concurrency properties.
+We first study an example race case which involves the instruction-issue queue (IQ) in the OOO processor, and then show how CMD maintains atomicity and solves the race problem by extending module interfaces with concurrency properties.
 
 \subsection{Race between Microarchitectural Events}\label{sec:cmd:iq}
 Figure~\ref{fig:race:modules} shows the modules and microarchitectural events that participate in a race in the OOO processor.
@@ -184,7 +184,7 @@ Whether two rules can execute concurrently and in which order depend on the prop
 Thus, for each module, we use a \emph{Conflict Matrix (CM)}, which specifies which methods of the module can be called concurrently.
 The relation between each pair of methods may be described as follows:
 \begin{itemize}
-    \item \emph{conflict-free}: the methods do not manipulate the same state elements, and thus, can be called concurrently;
+    \item \emph{conflict-free}: the methods do not manipulate the same states, and thus, can be called concurrently;
     \item \emph{conflicting}: the methods cannot be called in the same cycle;
     \item \emph{happen-before}: the methods can be called concurrently but functionally they behave as if one executed before the other.
     This involves bypass logic inside the module in case a write method happens before a read method.
@@ -195,7 +195,7 @@ Support for CMD requires a stall signal in the glue logic to suppress the execut
 Back to the race problem in Figure~\ref{fig:race}, if there is no bypass wire in the implementation of module IQ or module RDYB, then the CM of IQ will have method \emph{wake} happen before \emph{enter}, and the CM of RDYB will have method \emph{check} happen before \emph{set}.
 In this case, rules Rename and RegWrite conflict with each other and must be executed one by one. CMD will generate a stall signal to enforce such a schedule.
 To make rules RegWrite and Rename execute concurrently, one solution is to change the CM of RDYB to have method \emph{set} happen before \emph{check}.
-That is, the implementation of module RDYB contains a bypass wire from method \emph{set} to \emph{check}.
+That is, the implementation of RDYB contains a bypass wire from method \emph{set} to \emph{check}.
 We will show shortly that this bypass wire can be generated implicitly in CMD.
 In this case, RegWrite will appear to execute before Rename.
 
@@ -209,7 +209,7 @@ It is possible to use other HDLs to express CMD, but then we may not get all the
 \subsection{CMD Design Flow}
 We develop designs in two phases.
 We first focus on functionality and do not try to get maximum hardware concurrency.
-After this phase, we often discover that two rules are conflicting, and this affects the performance adversely.
+After this phase, we often discover that two rules are conflicting, and this affects performance adversely.
 To execute such rules concurrently invariably requires introduction of bypass logic.
 In CMD, one never writes bypass logic explicitly.
 Instead, one can specify the order in which rules should execute, from which one can derive the desired CM of each module.
@@ -218,7 +218,7 @@ This transformation does not affect the functional correctness of the overall de
 
 \subsection{Modular Refinement in CMD}
 When a refinement on a module does not affect the interface methods or the CM, the local correctness of the module guarantees the preservation of the overall correctness.
-If the CM of the refined module is changed, the BSV compiler can re-analyze the relations between rules and generate stall new signals to keep the design functionally correct.
+If the CM of the refined module is changed, the BSV compiler can re-analyze the relations between rules and generate new stall signals to keep the design functionally correct.
 
 In some cases, a refinement may entail several modules simultaneously or may add new methods to a module for increased functionality.
 Any changes in interface methods imply that the rules that call these methods have to be changed.
@@ -228,10 +228,10 @@ In summary, by employing modules with guarded interfaces and atomic rules, CMD i
 
 
 \section{RiscyOO -- a RISC-V Out-of-Order Processor Designed Using CMD}\label{sec:ooo}
-Using the CMD framework, we built, \emph{RiscyOO}, a parameterized out-of-order superscalar cache-coherent multiprocessor.
+Using the CMD framework, we built \emph{RiscyOO}, a parameterized out-of-order superscalar cache-coherent multiprocessor.
 The processor uses the open-source RISC-V instruction set~\cite{riscv}.
 Figure~\ref{fig:ooo} shows the structure of RiscyOO multiprocessor.
-The OOO core contains 2-way superscalar fetch/decode/commit, 4 execution pipelines (only two are shown for simplicity), and two-level private TLBs.
+The OOO core contains 2-way superscalar fetch/decode/commit, 4 execution pipelines, and two-level private TLBs.
 The core also performs various branch predictions, and execute loads speculatively.
 Figure~\ref{fig:tlb-config} shows one possible configuration of a single core.
 Multiple cores can be connected to a non-blocking coherent cache hierarchy to form a multiprocessor.
@@ -258,8 +258,8 @@ Using a 32nm technology, the processor can be clocked over 1GHz.
 \subsection{Flexible Open-Source Processor IP}
 The software community has benefited for years from open-source projects and permissive licensing. 
 This has allowed reusable libraries with proper APIs to flourish. 
-The open-source RISC-V ISA~\cite{riscv} is an attempt to open up the processor design community in a similar way.
-Although there are already several good and free implementations of RISC-V processors~\cite{rocketchip,boom,pulp}, which can be included directly as processor IP blocks when building an SoC, they are not enough to realize the full potential of RISC-V.
+The open-source RISC-V ISA~\cite{riscv} is an attempt to open up the processor-design community in a similar way.
+Although there are already several good and free implementations of RISC-V processors~\cite{rocketchip,boom,pulp}, which can be included directly as processor IP blocks when building SoCs, they are not enough to realize the full potential of RISC-V.
 This is because these processors are built in a structural way.
 As a consequence, their customizability is at a coarse granularity (e.g., changing cache and buffer sizes) and often limited by the number of configurations provided by the original processor designers.
 Moreover, if one needs to change the implementations of one or more modules in the processor, then he/she may need to understand the implementations of nearly all the modules in order to prevent his/her changes from breaking the whole processor.
@@ -269,7 +269,7 @@ The CMD framework solves the problem by providing composability at the module le
 If people need to change a module in a processor designed using CMD, only the interfaces, instead of implementations, of other modules need to be understood.
 This lowers the barrier for customizing processor designs, and would encourage more people to join the open-source hardware community.
 Furthermore, CMD allows people to contribute a variety of modules and replacements, which can be composed easily using atomic rules to form processors suitable for different use cases.
-As an example, we discuss next two of the refinements of RiscyOO that we have have implemented. 
+As an example, we discuss next two of the refinements of RiscyOO that we have implemented. 
 
 \noindent\textbf{Refining the TLB microarchitectures:}
 In the original design of RiscyOO, both L1 and L2 TLBs block on misses, and an L1-D TLB miss blocks the memory execution pipeline.
@@ -308,12 +308,11 @@ The improvement turns out to be significant: the average is 31.6\% (right-most c
     }\\
     \subfloat[Summary of TLB refinements\label{fig:tlb-refine}]{%
     \footnotesize
-    \begin{tabular}{|l|l|}
+    \begin{tabular}{|p{10ex}|p{50ex}|}
         \hline
         L1 D-TLB & Max 4 misses \\ \hline
         L2 TLB & Max 2 misses, max 2 page walks in parallel \\ \hline
-        Translation & 24 fully associate entries for each non-leaf page-walk level \\
-        Cache       & Total 2 non-leaf page-walk levels \\ \hline
+        Translation Cache & 24 fully associative entries for each non-leaf page-walk level. Total 2 non-leaf page-walk levels. \\ \hline
     \end{tabular}%
     }\\
     \subfloat[Performance improvement (in percentage) caused by the TLB refinements\label{fig:tlb-data}]{\includegraphics[width=\columnwidth]{figs/spec_tlb_opt_improve.pdf}}
@@ -335,7 +334,7 @@ As the number of refinements on our design provided by us and the community grow
 \subsection{Secure Architectures}
 The recent advent of side-channel attacks based on speculative microarchitectures have prompted architects to redesign processors for security.
 Such redesigns often manipulate microarchitectural states differently, and inevitably require changes in both software and hardware.
-The RiscyOO processor is a great platform for exploring security solutions because its speculative microarchitecture is as vulnerable to side-channel attacks as commercial processors.
+RiscyOO is a great platform for exploring security solutions because its speculative microarchitecture is as vulnerable to side-channel attacks as commercial processors.
 Its easy-to-modify design allows fast exploration of new security schemes which can be tested while running full software stack.
 Since all the reported attacks can be replicated even in an FPGA implementation, a red team can directly try to break a supposedly ``secure'' processor running in the (AWS) cloud.
 Last but not the least, the high speed of RiscyOO (40MHz on AWS FPGA) makes it possible to evaluate security schemes using large realistic benchmarks.
@@ -347,18 +346,18 @@ When the \flushInst{} instruction reaches the commit stage, it first stops instr
 After that, it starts flushing all the stateful modules including TLBs, L1 caches, branch predictors, etc.
 Instruction-fetch will be resumed after all the flushes have completed.
 
-Although the implementation of \flushInst{} could reuse the squash mechanism of exception handling, we discovered subtle issues regarding the race between the flush of stateful modules and the activity of wrong-path instructions which are squashed but not have yet been removed from the pipeline.
+Although the implementation of \flushInst{} could reuse the squash mechanism of exception handling, we discovered subtle issues regarding the race between the flush of stateful modules and the activity of wrong-path instructions which are squashed but have not yet been removed from the pipeline.
 % We consider the Fetch module in RiscyOO.
 Figure~\ref{fig:fetch} shows the 4-stage pipeline inside module Fetch.
 When a squash happens, the instructions in the FIFOs Q1 and Q2 correspond to the in-flight requests in I-TLB and I-cache, respectively, and should not be removed immediately; otherwise the in-flight requests in the I-TLB and I-cache will become orphans.
-Instead of propagating squash signals into module Fetch, the Rename rule will drain these wrong-path instructions gradually using an epoch-based scheme.
+Instead of propagating squash signals into module Fetch, rule Rename will drain these wrong-path instructions gradually using an epoch-based scheme.
 However, a wrong-path instruction in Q1 can then issue a wrong-path request to I-cache in rule Fetch2, while the I-cache is being flushed.
 A straightforward implementation is to block the request interface of I-cache during the flush.
 However, this implementation is insecure, because wrong-path instructions may leave their footprints in I-cache after the flush completes, and create a side-channel to influence the program after the context switch.
 Our implementation makes use of the guarded interface in CMD.
 The guard of the start-flush method of module Fetch can be true only when all the pipeline FIFOs in Fetch are empty.
 The guard ensures that flush can be initiated only after all wrong-path instructions have been drained from Fetch.
-The openness of RiscyOO microarchitecture also allows others to inspect and find such bugs.
+The openness of RiscyOO microarchitecture also allows others to find such bugs.
 
 The implementation of \flushInst{} was done by one person in a few days.
 We have also quantified its performance costs by running SPEC benchmarks on the AWS-FPGA prototype.
@@ -381,7 +380,7 @@ Both the synthesis results and the performance results are very encouraging, and
 \section*{Acknowledgment}
 We thank all the anonymous reviewers for their helpful feedbacks on improving this paper.
 We also benefited from the help from Jamey Hicks and Muralidaran Vijayaraghavan.
-We want to thank Bluespec, Inc. for providing free tool licenses.
+We thank Bluespec, Inc. for providing free tool licenses.
 This research is supported by the Defense Advanced Research Projects Agency (DARPA) under Contract No. FA8750-16-2-0004 and Contract No. HR001118C0018.
 Any opinions, findings and conclusions or recommendations expressed in this material are those of the authors and do not necessarily reflect the views of DARPA.
 

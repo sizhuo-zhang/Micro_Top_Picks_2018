@@ -75,12 +75,15 @@ Here we list several race cases in the out-of-order (OOO) processor we have buil
     There is a race in the management of these bits, because they are cleared by asynchronous events that show that the speculations were correct.
     
     \item \emph{Memory address disambiguation}:
-    A load in the load queue searches the store queue for forwarding, and a store in the store queue may update its address and search the load queue for detecting memory-dependency violations. 
+    A load in the load queue searches the store queue for forwarding.
+    At the same time, a store in the store queue may get its address filled, and it searches the load queue for detecting memory-dependency violations. 
     There is a race if the addresses are the same.
     
     \item \emph{Partially overlapped addresses}:
-    A load also searches through older stores for stalls due to partially overlapped addresses, and a store should wake up younger loads stalled by it when the store is written to the L1 cache.
-    There is a race if the addresses overlaps partially.
+    We stall the execution of a younger load-word if there is an older store-byte on the same word.
+    For example, a load-word searches older stores for detecting such stalls. % due to partially overlapped addresses,
+    A store-byte should wake up younger loads stalled by it when the store is written to the L1 cache.
+    There is a race if the load and store are accessing the same word.
     
     \item \emph{Distributed cache coherence protocols}:
     A race condition arises when a parent is trying to downgrade a child's entry while it is receiving the eviction of the same entry from the child.
@@ -183,7 +186,7 @@ The relation between each pair of methods may be described as follows:
 \begin{itemize}
     \item \emph{conflict-free}: the methods do not manipulate the same state elements, and thus, can be called concurrently;
     \item \emph{conflicting}: the methods cannot be called in the same cycle;
-    \item \emph{happen-before}: the methods can be called concurrently but functionally behave as if one executed before the other.
+    \item \emph{happen-before}: the methods can be called concurrently but functionally they behave as if one executed before the other.
     This involves bypass logic inside the module in case a write method happens before a read method.
 \end{itemize}
 Given the CMs of all the modules, it is straightforward to derive the concurrency relation between every pair of rules.
@@ -271,7 +274,7 @@ As an example, we discuss next two of the refinements of RiscyOO that we have ha
 \noindent\textbf{Refining the TLB microarchitectures:}
 In the original design of RiscyOO, both L1 and L2 TLBs block on misses, and an L1-D TLB miss blocks the memory execution pipeline.
 To improve performance, we have changed the L1-D TLB and L2 TLB to support parallel miss handling and to allow hits-under-misses.
-To reduce the TLB miss latency, we also included in the L2 TLB a split translation cache~\cite{translationCache}, which caches intermediate page-walk results.
+To reduce the TLB miss latency, we also included in the L2 TLB a ``split translation cache''~\cite{translationCache}, which caches intermediate page-walk results.
 These refinements not only change the internal implementations of TLBs significantly, but also affect the interfaces of TLBs, e.g., the L1-D TLB sends responses out of order.
 Thanks to CMD, the changes in TLBs affect only rules that call the TLB interface methods (e.g., rules AddrCalc and UpdateLSQ in Figure~\ref{fig:ooo:core}). One person was able to make these  changes within two weeks.
 We evaluated the performance impact of these refinements using SPEC CINT2006 benchmarks~\cite{riscyoo}.
@@ -337,61 +340,34 @@ Its easy-to-modify design allows fast exploration of new security schemes which 
 Since all the reported attacks can be replicated even in an FPGA implementation, a red team can directly try to break a supposedly ``secure'' processor running in the (AWS) cloud.
 Last but not the least, the high speed of RiscyOO (40MHz on AWS FPGA) makes it possible to evaluate security schemes using large realistic benchmarks.
 
-We have recently proposed the \emph{MI6}~\cite{mi6} secure processor architecture based on RiscyOO.
+We have recently proposed a secure processor architecture based on RiscyOO (citation suppressed).
 The realistic microarchitecture of RiscyOO has helped us identify subtle issues in implementing security features, and CMD has enabled us to resolve these problems swiftly.
-For example, we implemented a new \flushInst{} instruction, which the software can use to scrub local microarchitectural state switching context. This blocks side-channels between programs that runs on the core before and after the context switch.
-When the processor executes the \flushInst{} instruction, it first stops instruction-fetch and then squashes (****Arvind not sure - may be drains is better) all the in-flight instructions.
+For example, we implemented a new \flushInst{} instruction, which the software can use to scrub local microarchitectural states while switching context. This blocks side-channels between programs that runs on the core before and after the context switch.
+When the \flushInst{} instruction reaches the commit stage, it first stops instruction-fetch and then squashes all the in-flight instructions.
 After that, it starts flushing all the stateful modules including TLBs, L1 caches, branch predictors, etc.
 Instruction-fetch will be resumed after all the flushes have completed.
 
 Although the implementation of \flushInst{} could reuse the squash mechanism of exception handling, we discovered subtle issues regarding the race between the flush of stateful modules and the activity of wrong-path instructions which are squashed but not have yet been removed from the pipeline.
 % We consider the Fetch module in RiscyOO.
 Figure~\ref{fig:fetch} shows the 4-stage pipeline inside module Fetch.
-When a squash happens, the instructions in the FIFOs parallel with I-TLB and I-cache cannot be removed immediately; otherwise the in-flight requests in the I-TLB and I-cache will become orphans.
+When a squash happens, the instructions in the FIFOs Q1 and Q2 correspond to the in-flight requests in I-TLB and I-cache, respectively, and should not be removed immediately; otherwise the in-flight requests in the I-TLB and I-cache will become orphans.
 Instead of propagating squash signals into module Fetch, the Rename rule will drain these wrong-path instructions gradually using an epoch-based scheme.
-However, a wrong-path instructions in the FIFO parallel with I-TLB can then issue a wrong-path request to I-cache in rule Fetch2, while the I-cache is being flushed.
+However, a wrong-path instruction in Q1 can then issue a wrong-path request to I-cache in rule Fetch2, while the I-cache is being flushed.
 A straightforward implementation is to block the request interface of I-cache during the flush.
 However, this implementation is insecure, because wrong-path instructions may leave their footprints in I-cache after the flush completes, and create a side-channel to influence the program after the context switch.
 Our implementation makes use of the guarded interface in CMD.
 The guard of the start-flush method of module Fetch can be true only when all the pipeline FIFOs in Fetch are empty.
 The guard ensures that flush can be initiated only after all wrong-path instructions have been drained from Fetch.
-\emph{The openness of RiscyOO microarchitecture helps us avoid creating new side-channels while blocking old ones}.
+The openness of RiscyOO microarchitecture also allows others to inspect and find such bugs.
 
 The implementation of \flushInst{} was done by one person in a few days.
-We have also quantified its performance costs by running SPEC benchmarks on the AWS-FPGA prototype~\cite{mi6}.
+We have also quantified its performance costs by running SPEC benchmarks on the AWS-FPGA prototype.
 
 \begin{figure}[!htb]
     \centering
     \includegraphics[width=\columnwidth]{figs/fetch_cropped.pdf}
     \caption{The Fetch module in RiscyOO. Branch predictors, including the branch target buffer, tournament direction predictor and return address stack, are not shown.}\label{fig:fetch}
 \end{figure}
-
-\begin{comment}
-\subsection{Substrate for Validating Software-Hardware Codesign}
-
-%When improving the PPA of processors, hardware changes that are transparent to software are most welcome, and if the benefits are high enough, they can be absorbed into commercial designs gradually.
-%However, with the end of Moore's law, hardware designs are facing more and more critical constraints, and it has become very difficult to come up with such transparent hardware changes to improve PPA.
-
-As many recent research proposals show, increasingly people have come to appreciate the importance of codesigning software and hardware.
-However, these software-hardware codesign proposals meet with skepticism because of concerns about the interaction of architectural changes with the OS and other existing software/hardware stacks.
-For example, proposals on adaptive cache architectures~\cite{Jigsaw} often need to color pages, and it is natural to be concerned about the changes in OS codes that are needed to do this correctly, or how the changes interact with super pages which can benefit applications with large memory footprints.
-For another example, consider some newly proposed coherence protocols~\cite{DeNoVo}, which rely on software to be data-race-free (DRF). It is natural to have concerns regarding how the OS can gracefully terminate a user program that has data races and clean up polluted cache states caused by the user program.
-
-It is almost impossible to address these system-level concerns using a simulator which does not run an OS.
-Even if the simulator does run an OS, it is still difficult to convince others (e.g., commercial processor vendors) that the simulation model does not include anything that is difficult to implement in hardware.
-More importantly, simulation models may omit details to gain simulation speed, but those omitted details may turn out to affect the proposed scheme.
-For example, the DeNovo coherence protocol~\cite{DeNoVo}, which assumes software to be DRF, self-invalidates local caches at the end of each critical section.
-To improve performance, it does not flush data read during the current critical section, because DRF software should always read up-to-date values.
-However, the speculative load execution in modern processors may bring in any stale data into the local caches even when software is DRF.
-The paper did not address this concern, because the evaluation was done using an one-IPC core model which did not even simulate wrong path instructions.
-
-Given all the above concerns with software simulators, the only way to increase the fidelity of a software-hardware codesign proposal is to put up a full-system prototype.
-Our RiscyOO processor would be a great substrate for building such prototypes.
-Since RiscyOO boots Linux, researchers now have the opportunity to truly modify the OS and test the feasibility of the changes.
-Furthermore, the CMD framework used to build RiscyOO allows researchers to implement the proposed changes in a short time.
-In addition, the realistic microarchitectures of RiscyOO can help eliminate concerns on whether they have omitted hardware features that may affect the proposal adversely.
-Last but not the least, the high speed of RiscyOO (40MHz on AWS FPGA) makes evaluation of large realistic benchmarks possible.
-\end{comment}
 
 \section{Conclusion}\label{sec:conclude}
 To fully benefit from the openness of RISC-V, the architecture community needs a framework where many different people can cooperate to try out new ideas in real hardware.
@@ -402,7 +378,6 @@ With the atomicity guarantee in CMD, modules can be refined selectively relying 
 We have shown the efficacy of CMD by designing an OOO processor which has fairly complex architectural features.
 Both the synthesis results and the performance results are very encouraging, and with sufficient effort by the community, it should be possible to deliver commercial grade OOO processors in not too distant a future.
 
-
 \section*{Acknowledgment}
 We thank all the anonymous reviewers for their helpful feedbacks on improving this paper.
 We also benefited from the help from Jamey Hicks and Muralidaran Vijayaraghavan.
@@ -410,86 +385,7 @@ We want to thank Bluespec, Inc. for providing free tool licenses.
 This research is supported by the Defense Advanced Research Projects Agency (DARPA) under Contract No. FA8750-16-2-0004 and Contract No. HR001118C0018.
 Any opinions, findings and conclusions or recommendations expressed in this material are those of the authors and do not necessarily reflect the views of DARPA.
 
-
 \bibliographystyle{IEEEtran}
 \bibliography{top_picks}
 
 \end{document}
-
-
-
-%%%%
-% Original words by Thomas
-%%%%
-For example, to perform isolation between protection domains Sanctum~\cite{sanctum} performs various microarchitectural sanitizations.
-In~\cite{mi6} we evaluated the performance cost of this extra-work by modifying RiscyOO.
-
-For this section, we detail how to use CMD to implement the \verb|flush|
-instruction required by Sanctum to flush the L1s.
-
-% Convincing that it is hard to do in conventional design, but Sizhuo suggest it is useless
-% If the design under evaluation is not using CMD, flushing the L1 caches on
-% command of a new instruction \emph{flush} may end up being trickier
-% than what it sounds. An outline may be:
-% % My incompetence at standard verilog writing: Sizhuo could you make sure this is accurate?
-% \begin{itemize}
-% \item Adding stall signals on the fetch stage, keeping in mind that those signals should not break timing assumptions of the pipeline.
-% \item Adding a signal to know when the pipeline is empty, to be able to start a small state machine that should go over the line of the cache to write them back and put them into \emph{I} state.
-% \item Unstalling the fetch stage when the cache is done flushing.
-% \end{itemize}
-% 
-% All those may require intricate changes to the pipeline, especially if it is latency-sensitive.
-%   In RiscyOO, we only needed to identify the key architectural events
-% involved in the process of flushing the L1, which syntaxically and semantically shows up
-% very locally in rules.
-
-
-The important invariant is that no requests or responses are allowed to fly in the
-cache while it is being flushed. That is to avoid refilling the cache with data that
-comes from before the \verb|flush| instruction.
-
-% Describe that implementations piggybacking on fence instruction -basically fence
-% in which we also start the state machine in the cache- is not enough because
-% it would not prevent frontend to speculate and bring in things in the cache? What do
-% you think Sizhuo?
-
-There are two sorts of requests: instruction and data, which comes
-from two sources:the Front End of the pipeline and the Load Store
-queue. If we unfold the previous invariant on those two modules we get
-the equivalent condition:
-\begin{itemize}
-    \item The Load/Store queue is empty (with no wrongPath load) and is not going to issue any request or get responses
-    \item The Front End of the pipeline is empty and is not going to emit any request or get responses
-\end{itemize}
-
-To put the core in a state where those two conditions are true, we can simply: %To guarantee that those conditions are going to stay true for the entire time of the flush we:
-\begin{itemize}
-    \item Stop Fetching when the \verb|flush| instruction gets renamed.
-    \item When \verb|flush| gets renamed, switch the Renaming stage to drop every incoming new instruction.  %I want to make sure that there is no backpressure coming from not renaming that would prevent an instruction fetch response to come back 
-\end{itemize}
-Indeed, as no new material will get in the machine, it is clear that after sufficiently
-much time the Load/Store queue and the Front End are going to be empty and stay
-empty until we allow fetching more instructions.
-
-Those require only minor changes to two rules: Renaming and Fetch.
-
-With those changes, we can safely execute \verb|flush| when:
-\begin{itemize}
-    \item The \verb|flush| instruction is at the head of the ROB. %This is only required because of faults right? Because if LDSTQ is empty and FE empty 
-    % we could actually emit the flush.
-    \item The Load/Store queue is empty (including no wrongPath load)
-    \item The Front End of the pipeline is empty.
-\end{itemize}
-
-The execution of \verb|flush| instruction starts a simple state machine in
-charge of iterating through the lines of the cache, downgrading every line to
-the \emph{Invalid} state.
-When the state machine completes it:
-\begin{itemize}
-    \item Restarts the FrontEnd at the pc
-    following the \verb|flush| instruction
-    \item Reverts the Renaming stage into its normal functionality of renaming instructions - instead of dropping them.
-\end{itemize}
-Note that the \verb|flush| instruction can retire as soon as it started the
-machine and it does not need to wait for the state machine to complete.
-Thanks to CMD, this logical reasoning is straightforward to translate into code.

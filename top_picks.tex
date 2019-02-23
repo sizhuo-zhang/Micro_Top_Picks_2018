@@ -134,7 +134,7 @@ Many of these attempts were focused on demonstrating new architectures; there wa
 Other attempts aimed at providing open-source processors and a corresponding framework for configuring the design.
 For example, the Rocket chip generator~\cite{rocketchip} can generate SoCs with RISC-V cores that are parameterized by caches, branch predictors, degree of superscalarity, and ISA extensions.
 Fabscalar~\cite{fabscalar} allows one to assemble a variety of superscalar designs from a set of predefined pipeline-stage blocks.
-FabScalar have been successful in generating heterogeneous cores, but the predefined blocks are not intended to be modified themselves.
+FabScalar has been successful in generating heterogeneous cores, but the predefined blocks are not intended to be modified themselves.
 PULP~\cite{pulp} is a platform for designing low-power IoT SoCs, but the processor cores are not intended to be refined within the framework.
 
 All these frameworks are structural compositions of predefined building blocks.
@@ -340,7 +340,7 @@ Its easy-to-modify design allows fast exploration of new security schemes which 
 Since all the reported attacks can be replicated even in an FPGA implementation, a red team can directly try to break a supposedly ``secure'' processor running in the (AWS) cloud.
 Last but not the least, the high speed of RiscyOO (40MHz on AWS FPGA) makes it possible to evaluate security schemes using large realistic benchmarks.
 
-We have recently proposed a secure processor architecture based on RiscyOO (citation suppressed).
+We have recently proposed a secure processor architecture based on RiscyOO (citation suppressed for blind reviews).
 The realistic microarchitecture of RiscyOO has helped us identify subtle issues in implementing security features, and CMD has enabled us to resolve these problems swiftly.
 For example, we implemented a new \flushInst{} instruction, which the software can use to scrub local microarchitectural states while switching context. This blocks side-channels between programs that runs on the core before and after the context switch.
 When the \flushInst{} instruction reaches the commit stage, it first stops instruction-fetch and then squashes all the in-flight instructions.

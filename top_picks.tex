@@ -20,12 +20,8 @@
 \usepackage[normalem]{ulem}
 \usepackage{hyperref}
 
-%\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
-%    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
-
 % our defs
 \setlist{noitemsep,leftmargin=*}
-%\newenvironment{tightlist}{\begin{itemize}\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}{\end{itemize}}
 \newcommand{\mycomment}[1]{\emph{\textcolor{red}{[#1]}}}
 
 \newcommand{\flushInst}{\texttt{purge}\xspace}
@@ -44,7 +40,6 @@
 \pagestyle{plain}
 
 \begin{abstract}
-    % Maximum 149 words
     We present a framework called Composable Modular Design (CMD) to facilitate the design of out-of-order processors. In CMD, (1) The interface methods of modules provide instantaneous access and perform atomic updates to the state elements inside the module; (2) Every interface method is guarded, i.e., it cannot be applied unless it is ready; and (3) Modules are composed by atomic rules which call interface methods of different modules. A rule either successfully updates the state of all the called modules or does nothing.
     
     The atomicity properties of interfaces in CMD ensure composability when modules are refined selectively. We show the efficacy of CMD by building an out-of-order RISC-V processor which boots Linux. Modules designed using CMD (e.g., ROB, load-store unit, etc.) can be used and refined by other implementations. We believe that this framework can revolutionize architectural research and practice as the library of reusable components grows.
@@ -110,7 +105,6 @@ An atomic rule is like an atomic transaction, which either updates the states of
 Of course, a method can execute only if its guard is true; therefore, the guards of all the methods called by a rule must be true simultaneously.
 In CMD, each microarchitectural event, which is supposed to happen in a single cycle, is expressed as an atomic rule.
 Atomicity ensures that the refinement of a module does not affect how the module is used by other rules.
-%, i.e., modules are much more composable.
 
 This paper makes the following contributions:
 \begin{enumerate}
@@ -283,8 +277,6 @@ Figure~\ref{fig:tlb-refine} shows the details of the refinements, i.e., the numb
 Figure~\ref{fig:tlb-data} shows the relative performance improvement caused by the refinements.
 The improvement turns out to be significant: the average is 31.6\% (right-most column), and the maximum even reaches 98\% (benchmark astar).
 
-%Detailed analysis can be found in~\cite{riscyoo}.
-
 \begin{figure}[!htb]
     \centering
     \subfloat[Base processor configuration\label{fig:tlb-config}]{%
@@ -347,7 +339,6 @@ After that, it starts flushing all the stateful modules including TLBs, L1 cache
 Instruction-fetch will be resumed after all the flushes have completed.
 
 Although the implementation of \flushInst{} could reuse the squash mechanism of exception handling, we discovered subtle issues regarding the race between the flush of stateful modules and the activity of wrong-path instructions which are squashed but have not yet been removed from the pipeline.
-% We consider the Fetch module in RiscyOO.
 Figure~\ref{fig:fetch} shows the 4-stage pipeline inside module Fetch.
 When a squash happens, the instructions in the FIFOs Q1 and Q2 correspond to the in-flight requests in I-TLB and I-cache, respectively, and should not be removed immediately; otherwise the in-flight requests in the I-TLB and I-cache will become orphans.
 Instead of propagating squash signals into module Fetch, rule Rename will drain these wrong-path instructions gradually using an epoch-based scheme.
@@ -384,7 +375,80 @@ We thank Bluespec, Inc. for providing free tool licenses.
 This research is supported by the Defense Advanced Research Projects Agency (DARPA) under Contract No. FA8750-16-2-0004 and Contract No. HR001118C0018.
 Any opinions, findings and conclusions or recommendations expressed in this material are those of the authors and do not necessarily reflect the views of DARPA.
 
-\bibliographystyle{IEEEtran}
-\bibliography{top_picks}
+\begin{thebibliography}{10}
+    \providecommand{\url}[1]{#1}
+    \csname url@samestyle\endcsname
+    \providecommand{\newblock}{\relax}
+    \providecommand{\bibinfo}[2]{#2}
+    \providecommand{\BIBentrySTDinterwordspacing}{\spaceskip=0pt\relax}
+    \providecommand{\BIBentryALTinterwordstretchfactor}{4}
+    \providecommand{\BIBentryALTinterwordspacing}{\spaceskip=\fontdimen2\font plus
+        \BIBentryALTinterwordstretchfactor\fontdimen3\font minus
+        \fontdimen4\font\relax}
+    \providecommand{\BIBforeignlanguage}[2]{{%
+            \expandafter\ifx\csname l@#1\endcsname\relax
+            \typeout{** WARNING: IEEEtran.bst: No hyphenation pattern has been}%
+            \typeout{** loaded for the language `#1'. Using the pattern for}%
+            \typeout{** the default language instead.}%
+            \else
+            \language=\csname l@#1\endcsname
+            \fi
+            #2}}
+    \providecommand{\BIBdecl}{\relax}
+    \BIBdecl
+    
+    \bibitem{rocketchip}
+    ``Rocket chip generator,''
+    \url{https://github.com/freechipsproject/rocket-chip}.
+    
+    \bibitem{boom}
+    ``Berkeley out-of-order machine,'' \url{https://github.com/ucb-bar/riscv-boom}.
+    
+    \bibitem{fabscalar}
+    N.~Choudhary, S.~Wadhavkar, T.~Shah, H.~Mayukh, J.~Gandhi, B.~Dwiel, S.~Navada,
+    H.~Najaf-abadi, and E.~Rotenberg, ``Fabscalar: Automating superscalar core
+    design,'' \emph{IEEE Micro}, vol.~32, 2012.
+    
+    \bibitem{pulp}
+    ``{PULP} platform,'' \url{https://github.com/pulp-platform}.
+    
+    \bibitem{rosenband2005hardware}
+    D.~L. Rosenband and Arvind, ``Hardware synthesis from guarded atomic actions
+    with performance specifications,'' in \emph{ICCAD-2005. IEEE/ACM
+        International Conference on Computer-Aided Design, 2005.}\hskip 1em plus
+    0.5em minus 0.4em\relax IEEE, 2005.
+    
+    \bibitem{riscv}
+    ``Risc-v instruction set,'' \url{https://riscv.org/}.
+    
+    \bibitem{awsf1}
+    ``Amazon {EC2 F1} instances,''
+    \url{https://aws.amazon.com/ec2/instance-types/f1/}.
+    
+    \bibitem{riscyoo}
+    S.~Zhang, A.~Wright, T.~Bourgeat, and Arvind, ``Composable building blocks to
+    open up processor design,'' in \emph{2018 51st Annual IEEE/ACM International
+        Symposium on Microarchitecture (MICRO)}.\hskip 1em plus 0.5em minus
+    0.4em\relax IEEE, 2018.
+    
+    \bibitem{translationCache}
+    T.~W. Barr, A.~L. Cox, and S.~Rixner, ``Translation caching: skip, don't walk
+    (the page table),'' \emph{ACM SIGARCH Computer Architecture News}, vol.~38,
+    2010.
+    
+    \bibitem{wmm}
+    S.~Zhang, M.~Vijayaraghavan, and Arvind, ``Weak memory models: Balancing
+    definitional simplicity and implementation flexibility,'' in \emph{Parallel
+        Architectures and Compilation Techniques (PACT), 2017 26th International
+        Conference on}.\hskip 1em plus 0.5em minus 0.4em\relax IEEE, 2017.
+    
+    \bibitem{gam}
+    S.~Zhang, M.~Vijayaraghavan, A.~Wright, M.~Alipour, and Arvind, ``Constructing
+    a weak memory model,'' in \emph{Proceedings of the 45th Annual International
+        Symposium on Computer Architecture}.\hskip 1em plus 0.5em minus 0.4em\relax
+    IEEE Press, 2018.
+    
+\end{thebibliography}
+
 
 \end{document}
